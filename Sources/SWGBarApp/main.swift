@@ -21,6 +21,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         AppLogger.shared.info("App", "AppDelegate started; loading the menu bar controller and UI...")
+        // Restore the saved appearance before any window is created.
+        AppearanceManager.shared.apply()
         // Create the menu bar controller and show the panel after launch.
         menuBarController = MenuBarController()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in

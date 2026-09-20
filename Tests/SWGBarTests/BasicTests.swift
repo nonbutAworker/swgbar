@@ -550,4 +550,27 @@ private final class ProbeTargetCollector: @unchecked Sendable {
         defer { lock.unlock() }
         return items
     }
+
+    /// The footer button must cycle System -> Dark -> Light -> System.
+    func testAppearanceModeCyclesThroughThreeStates() {
+        XCTAssertEqual(AppearanceMode.system.next, .dark, "System must advance to Dark")
+        XCTAssertEqual(AppearanceMode.dark.next, .light, "Dark must advance to Light")
+        XCTAssertEqual(AppearanceMode.light.next, .system, "Light must return to System")
+
+        // Three clicks from any starting point must return to that same mode.
+        for start in AppearanceMode.allCases {
+            XCTAssertEqual(start.next.next.next, start, "\(start) must return to itself after three clicks")
+        }
+
+        // Labels and symbols must be distinct so the button state is unambiguous.
+        let labels = Set(AppearanceMode.allCases.map { $0.label })
+        XCTAssertEqual(labels, ["System", "Dark", "Light"])
+        XCTAssertEqual(Set(AppearanceMode.allCases.map { $0.symbolName }).count, 3)
+
+        // Raw values back the persisted preference and must round-trip.
+        for mode in AppearanceMode.allCases {
+            XCTAssertEqual(AppearanceMode(rawValue: mode.rawValue), mode)
+        }
+        XCTAssertNil(AppearanceMode(rawValue: "not-a-mode"), "Unknown values fall back to the default")
+    }
 }

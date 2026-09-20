@@ -8,6 +8,7 @@ import SWGBarContracts
 
 public struct FooterView: View {
     @ObservedObject var vm: AppViewModel
+    @ObservedObject private var appearance = AppearanceManager.shared
     
     public init(vm: AppViewModel) {
         self.vm = vm
@@ -15,6 +16,25 @@ public struct FooterView: View {
     
     public var body: some View {
         HStack(spacing: 8) {
+            // Cycles System -> Dark -> Light; same small type as the version label.
+            Button(action: {
+                appearance.cycle()
+            }) {
+                HStack(spacing: 3) {
+                    Image(systemName: appearance.mode.symbolName)
+                        .font(.system(size: 9))
+                    Text(appearance.mode.label)
+                        .font(.system(size: 10))
+                }
+                .foregroundColor(.secondary.opacity(0.7))
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("Appearance: \(appearance.mode.label) - click to switch")
+            .accessibilityLabel("Appearance")
+            .accessibilityValue(appearance.mode.label)
+            .accessibilityHint("Click to cycle between System, Dark and Light")
+
             Text("v\(InstallationManager.currentVersion)")
                 .font(.system(size: 10))
                 .foregroundColor(.secondary.opacity(0.7))
