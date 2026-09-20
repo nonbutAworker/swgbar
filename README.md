@@ -14,6 +14,8 @@ A native macOS menu bar app for examining TLS inspection signals, certificate tr
 
 **Upgrading:** the current application resets its local database, rules, encryption key, and archived logs when it detects a newer version. Back up the data directories listed below before upgrading if you need to retain existing records. The installer itself contains no cleanup scripts.
 
+Version checks compare numeric components and accept an optional `v` or `V` prefix. Equivalent versions and downgrades preserve existing data. A malformed or unreadable version marker is retained and does not trigger cleanup.
+
 Release assets include `SHA256SUMS.txt` for checking the downloaded package:
 
 ```bash
@@ -80,7 +82,7 @@ Create an installer for the current architecture:
 ./scripts/package_release.sh
 ```
 
-The script builds the app and writes `build/SWGBar-macOS-<architecture>.pkg` and `build/SHA256SUMS.txt`. The published 1.6.0 package is built and tested on Apple Silicon. Intel binaries are not included in that release.
+The script builds the app and writes `build/SWGBar-macOS-<architecture>.pkg` and `build/SHA256SUMS.txt`. The published 1.6.1 package is built and tested on Apple Silicon. Intel binaries are not included in that release.
 
 For the existing disk image and ZIP packaging workflow:
 
