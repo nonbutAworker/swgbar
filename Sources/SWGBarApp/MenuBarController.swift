@@ -1,7 +1,7 @@
 //
-// SWGBar / macOS 菜单栏 TLS 检查检测器
-// 菜单栏状态项与 Popover 控制器 (MenuBarController.swift)
-// 遵循技术方案 v1.1 第 15-16 章：NSStatusItem、18x18 模板图、右键原生菜单、无 Dock 入口
+// SWGBar / macOS menu bar TLS inspection detector
+// Menu bar status item and popover controller (MenuBarController.swift)
+// Use an NSStatusItem, a template icon, and a native context menu without a Dock entry.
 //
 
 import Cocoa
@@ -62,7 +62,7 @@ public final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegat
     }
     
     private func setupEventMonitor() {
-        // 监听 Esc 按键关闭面板
+        // Close the panel when Escape is pressed.
         NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self = self else { return event }
             if event.keyCode == 53 /* Esc */ {
@@ -78,7 +78,7 @@ public final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegat
     private func startMonitoringOutsideClicks() {
         stopMonitoringOutsideClicks()
         
-        // 1. 全局监听外部点击（捕获其他应用程序、桌面或其他菜单项点击）
+        // 1. Observe clicks outside the app, including the desktop and other menu items.
         globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
             guard let self = self else { return }
             DispatchQueue.main.async {
@@ -88,7 +88,7 @@ public final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegat
             }
         }
         
-        // 2. 本地监听点击（若点击在本应用内但不在 popover 内容区域）
+        // 2. Observe app-local clicks outside the popover content.
         localMouseMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
             guard let self = self else { return event }
             if self.popover.isShown {
@@ -122,10 +122,10 @@ public final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegat
         guard let currentEvent = NSApp.currentEvent else { return }
         
         if currentEvent.type == .rightMouseUp {
-            // 右键打开极简原生菜单 (第 15.3 章)
+            // Open the native context menu on right click.
             showContextMenu()
         } else {
-            // 左键开关面板
+            // Toggle the panel on left click.
             togglePopover()
         }
     }
@@ -158,7 +158,7 @@ public final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegat
         let menu = NSMenu()
         menu.delegate = self
         
-        let quitItem = NSMenuItem(title: "退出", action: #selector(menuQuit), keyEquivalent: "q")
+        let quitItem = NSMenuItem(title: "Quit", action: #selector(menuQuit), keyEquivalent: "q")
         quitItem.target = self
         menu.addItem(quitItem)
         
@@ -167,7 +167,7 @@ public final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegat
     }
     
     public func menuDidClose(_ menu: NSMenu) {
-        statusItem.menu = nil // 恢复左键点击
+        statusItem.menu = nil // Restore left-click handling.
     }
     
     @objc private func menuQuit() {
@@ -188,7 +188,7 @@ public final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegat
                 ]
             )
             button.image = nil
-            button.toolTip = "SWGBar: 尚未取得适用请求样本"
+            button.toolTip = "SWGBar: No eligible request samples yet"
             return
         }
         
@@ -207,7 +207,7 @@ public final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegat
         let y = viewModel.snapshot.mitmHijackedCount
         let x = viewModel.snapshot.mitmTotalCount
         let pct = viewModel.snapshot.mitmPercentageString
-        let stateHint = viewModel.snapshot.collectorState == .paused ? " · 监测已暂停" : ""
-        button.toolTip = "SWGBar: 域名劫持占比 \(y)/\(x) (\(pct)) · 已确认 \(viewModel.snapshot.counts.confirmed) · 疑似 \(viewModel.snapshot.counts.suspected)\(stateHint)"
+        let stateHint = viewModel.snapshot.collectorState == .paused ? " · Monitoring paused" : ""
+        button.toolTip = "SWGBar: TLS inspection rate \(y)/\(x) (\(pct)) · Confirmed \(viewModel.snapshot.counts.confirmed) · Suspected \(viewModel.snapshot.counts.suspected)\(stateHint)"
     }
 }

@@ -1,29 +1,29 @@
 //
-// SWGBar / macOS 菜单栏 TLS 检查检测器
-// 安装版本管理与升级清理 (InstallationManager.swift)
+// SWGBar / macOS menu bar TLS inspection detector
+// Installation version tracking and upgrade cleanup (InstallationManager.swift)
 //
-// macOS 的拖拽安装与「移到废纸篓」卸载都没有任何系统钩子，应用无法在安装/卸载时刻执行代码。
-// 因此升级检测只能放在进程启动的最早期：在数据库与加密密钥初始化之前完成判定与清理，
-// 一旦发现当前版本高于上次记录的版本，就把本应用写入的全部本地文件删除，
-// 使后续初始化等价于「从未安装过」的全新状态。
+// Drag-and-drop installation and moving an app to the Trash do not invoke application hooks.
+// Detect upgrades during early startup, before opening the database or reading its key.
+// When the application version increases, the existing implementation clears its local files.
+// Subsequent initialization then starts with fresh application state.
 //
 
 import Foundation
 
 public enum InstallationManager {
 
-    /// 版本标记文件独立于数据库存放：数据库本身会被清理，标记不能依赖它
+    /// Keep the version marker outside the database so it remains available during cleanup.
     private static let versionMarkerName = ".installed_version"
 
     public struct UpgradeDecision: Sendable {
-        /// 上一次运行记录的版本；首次安装为 nil
+        /// Previously recorded version, or nil on the first launch
         public let previousVersion: String?
         public let currentVersion: String
-        /// 是否执行了升级清理
+        /// Whether upgrade cleanup was performed
         public let didResetForUpgrade: Bool
     }
 
-    // MARK: - 路径
+    // MARK: - Paths
 
     public static var dataDirectory: URL {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
@@ -39,14 +39,14 @@ public enum InstallationManager {
         dataDirectory.appendingPathComponent(versionMarkerName)
     }
 
-    /// 当前应用版本，取自 Info.plist；非 App 包运行（如单元测试）时回退为 0.0
+    /// Read the bundle version from Info.plist; use 0.0 outside an app bundle, such as in unit tests.
     public static var currentVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0"
     }
 
-    // MARK: - 版本比较
+    // MARK: - Version comparison
 
-    /// 按数字段逐级比较版本号，例如 1.10 > 1.9；无法解析的段按 0 处理
+    /// Compare numeric components in order, treating unparseable components as zero; 1.10 is newer than 1.9.
     static func isVersion(_ lhs: String, newerThan rhs: String) -> Bool {
         let l = lhs.split(separator: ".").map { Int($0) ?? 0 }
         let r = rhs.split(separator: ".").map { Int($0) ?? 0 }
@@ -58,40 +58,40 @@ public enum InstallationManager {
         return false
     }
 
-    // MARK: - 启动时执行一次
+    // MARK: - Run once during startup
 
-    /// 必须在数据库、加密密钥、日志之外的任何本地状态初始化之前调用。
-    /// 仅当当前版本高于已记录版本时清理；同版本重启或降级都不会清理。
+    /// Call before initializing database, encryption, or other persistent application state.
+    /// Clean up only on an upgrade; same-version launches and downgrades preserve data.
     @discardableResult
     public static func prepareForLaunch() -> UpgradeDecision {
         let current = currentVersion
         let previous = readRecordedVersion()
 
         guard let previous else {
-            // 无标记：可能是真正的首次安装，也可能是旧版本遗留的数据目录。
-            // 两者都需要一个干净起点，因此只要目录里已有本应用写入的文件就一并清理。
+            // A missing marker may indicate a first installation or data from an older application version.
+            // The current policy clears existing application files before initializing a fresh installation.
             if hasExistingAppData() {
-                purgeAllLocalData(reason: "检测到未携带版本标记的历史数据，按全新安装处理")
+                purgeAllLocalData(reason: "Existing data has no version marker; resetting for a fresh installation")
             }
             writeRecordedVersion(current)
             return UpgradeDecision(previousVersion: nil, currentVersion: current, didResetForUpgrade: false)
         }
 
         guard isVersion(current, newerThan: previous) else {
-            // 同版本重启或降级：保留数据，仅在降级时留痕
+            // Retain data on the same version or a downgrade, logging the latter.
             if previous != current {
-                AppLogger.shared.warn("Install", "当前版本 \(current) 低于已记录版本 \(previous)，保留现有数据不做清理")
+                AppLogger.shared.warn("Install", "Version \(current) is older than recorded version \(previous); retaining existing data")
             }
             return UpgradeDecision(previousVersion: previous, currentVersion: current, didResetForUpgrade: false)
         }
 
-        purgeAllLocalData(reason: "版本由 \(previous) 升级至 \(current)")
+        purgeAllLocalData(reason: "Upgrading from \(previous) to \(current)")
         writeRecordedVersion(current)
-        AppLogger.shared.info("Install", "已完成升级清理，本次启动等价于全新安装 (\(previous) -> \(current))")
+        AppLogger.shared.info("Install", "Upgrade cleanup complete; starting with fresh data (\(previous) -> \(current))")
         return UpgradeDecision(previousVersion: previous, currentVersion: current, didResetForUpgrade: true)
     }
 
-    // MARK: - 标记读写
+    // MARK: - Read and write the version marker
 
     private static func readRecordedVersion() -> String? {
         guard let data = try? Data(contentsOf: versionMarkerURL),
@@ -107,35 +107,35 @@ public enum InstallationManager {
         do {
             try fm.createDirectory(at: dataDirectory, withIntermediateDirectories: true)
         } catch {
-            AppLogger.shared.error("Install", "创建数据目录失败，版本标记无法写入: \(error.localizedDescription)")
+            AppLogger.shared.error("Install", "Cannot create the data directory or write the version marker: \(error.localizedDescription)")
             return
         }
         do {
             try Data(version.utf8).write(to: versionMarkerURL, options: .atomic)
         } catch {
-            AppLogger.shared.error("Install", "版本标记写入失败，下次启动可能重复执行清理: \(error.localizedDescription)")
+            AppLogger.shared.error("Install", "Cannot write the version marker; cleanup may repeat on the next launch: \(error.localizedDescription)")
         }
     }
 
-    // MARK: - 清理
+    // MARK: - Cleanup
 
-    /// 判断数据目录中是否存在本应用写入的文件（密钥、数据库或版本标记）
+    /// Check for existing application data, such as the database or encryption key.
     private static func hasExistingAppData() -> Bool {
         let fm = FileManager.default
         let markers = [".storage_key", "swgbar.sqlite"]
         return markers.contains { fm.fileExists(atPath: dataDirectory.appendingPathComponent($0).path) }
     }
 
-    /// 删除本应用写入的全部本地文件，包括加密密钥，使下次初始化等价于从未安装过
+    /// Remove local application data and its key so initialization starts with fresh state.
     private static func purgeAllLocalData(reason: String) {
-        AppLogger.shared.info("Install", "开始清理历史本地数据：\(reason)")
+        AppLogger.shared.info("Install", "Clearing historical local data: \(reason)")
         let fm = FileManager.default
 
-        // 数据目录：数据库、WAL/SHM、加密密钥、版本标记
-        removeIfExists(dataDirectory, label: "数据目录")
+        // Data directory: database, WAL/SHM files, encryption key, and version marker
+        removeIfExists(dataDirectory, label: "data directory")
 
-        // 日志目录：当前日志与全部历史归档；日志文件此时已被 AppLogger 持有句柄，
-        // 因此只清理归档与目录内容，当前日志交由 AppLogger 自行续写。
+        // The logger already holds the active log file open.
+        // Remove archived logs while leaving the active log available for continued writes.
         purgeLogArchives()
 
         _ = fm
@@ -147,16 +147,16 @@ public enum InstallationManager {
         do {
             try fm.removeItem(at: url)
         } catch {
-            AppLogger.shared.error("Install", "清理\(label)失败: \(url.path) -> \(error.localizedDescription)")
+            AppLogger.shared.error("Install", "Cannot remove \(label): \(url.path) -> \(error.localizedDescription)")
         }
     }
 
-    /// 仅删除历史归档日志，避免移除正在被写入的当前日志文件
+    /// Remove only archived logs, preserving the file currently held by the logger.
     private static func purgeLogArchives() {
         let fm = FileManager.default
         guard let items = try? fm.contentsOfDirectory(atPath: logDirectory.path) else { return }
         for name in items where name.hasPrefix("swgbar.log.") {
-            removeIfExists(logDirectory.appendingPathComponent(name), label: "历史日志")
+            removeIfExists(logDirectory.appendingPathComponent(name), label: "archived logs")
         }
     }
 }

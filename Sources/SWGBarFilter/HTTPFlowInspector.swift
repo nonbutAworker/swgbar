@@ -1,8 +1,8 @@
 //
-// SWGBar / macOS 菜单栏 TLS 检查检测器
-// TLS / DNS 流量检查器 (HTTPFlowInspector.swift)
-// 从 TLS SNI、DNS 应答与 HTTPS 连接复用中还原「域名+端口」
-// HTTPS 应用数据本身是加密的，无法直接读 Host；复用连接依赖此前学到的 SNI/DNS。
+// SWGBar / macOS menu bar TLS inspection detector
+// TLS and DNS metadata inspection (HTTPFlowInspector.swift)
+// Recover hostnames and ports from TLS SNI, DNS responses, and reused connections.
+// HTTPS application data is encrypted; reused connections depend on previously learned SNI or DNS mappings.
 //
 
 import Foundation
@@ -66,7 +66,7 @@ public final class FlowHostnameCache: @unchecked Sendable {
 }
 
 public enum HTTPFlowInspector {
-    /// TLS 记录层：Handshake / ChangeCipherSpec / Alert / ApplicationData
+    /// TLS record types: handshake, change cipher spec, alert, and application data
     public static func looksLikeTLSRecord(_ payload: Data) -> Bool {
         guard payload.count >= 5 else { return false }
         let contentType = payload[0]
@@ -74,14 +74,14 @@ public enum HTTPFlowInspector {
         return payload[1] == 0x03 && payload[2] <= 0x04
     }
     
-    /// IETF QUIC：长头或 short header 的 fixed bit
+    /// IETF QUIC: inspect the fixed bit in long or short headers.
     public static func looksLikeQUIC(_ payload: Data) -> Bool {
         guard payload.count >= 5 else { return false }
         if payload[0] & 0x80 != 0 { return true }
         return payload[0] & 0x40 != 0
     }
     
-    /// 解析 TLS ClientHello 中的 SNI
+    /// Parse SNI from a TLS ClientHello.
     public static func parseTLSServerName(from payload: Data) -> String? {
         guard payload.count >= 43 else { return nil }
         guard payload[0] == 0x16, payload[5] == 0x01 else { return nil }
@@ -128,11 +128,11 @@ public enum HTTPFlowInspector {
         return nil
     }
     
-    /// 从 DNS 应答中提取 A/AAAA → 主机名
+    /// Extract A and AAAA hostname mappings from DNS responses.
     public static func parseDNSAddressRecords(from payload: Data) -> [(ip: String, hostname: String)] {
         guard payload.count >= 12 else { return [] }
         let flags = Int(payload[2]) << 8 | Int(payload[3])
-        guard (flags & 0x8000) != 0 else { return [] } // 仅处理应答
+        guard (flags & 0x8000) != 0 else { return [] } // Process responses only.
         let qd = Int(payload[4]) << 8 | Int(payload[5])
         let an = Int(payload[6]) << 8 | Int(payload[7])
         guard qd > 0, an > 0, qd < 32, an < 64 else { return [] }

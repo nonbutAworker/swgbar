@@ -1,7 +1,7 @@
 //
-// SWGBar / macOS 菜单栏 TLS 检查检测器
-// 存储加密与密钥管理 (Crypto.swift)
-// 遵循技术方案 v1.1 第 33.2 章：AES-GCM + AAD 绑定，HMAC 独立派生密钥
+// SWGBar / macOS menu bar TLS inspection detector
+// Storage encryption and key management (Crypto.swift)
+// AES-GCM with bound associated data and an independently derived HMAC key.
 //
 
 import Foundation
@@ -26,28 +26,28 @@ public final class StorageCrypto: @unchecked Sendable {
         do {
             try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         } catch {
-            AppLogger.shared.error("Crypto", "创建密钥目录失败，本地加密数据可能无法持久化: \(error.localizedDescription)")
+            AppLogger.shared.error("Crypto", "Cannot create the key directory; encrypted data may not persist: \(error.localizedDescription)")
         }
         let keyFile = dir.appendingPathComponent(".storage_key")
 
         if let data = try? Data(contentsOf: keyFile), data.count == 32 {
             self.masterKey = SymmetricKey(data: data)
         } else {
-            // 首次启动无密钥文件属正常情况；已存在但读取失败或长度异常则会导致旧数据无法解密
+            // A missing key is expected on first launch; an unreadable or invalid existing key makes older data unreadable.
             if FileManager.default.fileExists(atPath: keyFile.path) {
-                AppLogger.shared.error("Crypto", "已存在的密钥文件读取失败或长度异常，将重新生成密钥，此前加密数据将无法解密")
+                AppLogger.shared.error("Crypto", "The existing key is unreadable or has an invalid length. A new key will be generated; previously encrypted data will be unreadable.")
             }
             let newKey = SymmetricKey(size: .bits256)
             let data = newKey.withUnsafeBytes { Data($0) }
             do {
                 try data.write(to: keyFile, options: .atomic)
             } catch {
-                AppLogger.shared.error("Crypto", "密钥写入失败，重启后将无法解密本次数据: \(error.localizedDescription)")
+                AppLogger.shared.error("Crypto", "Cannot save the key; this session's data will be unreadable after restarting: \(error.localizedDescription)")
             }
             do {
                 try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: keyFile.path)
             } catch {
-                AppLogger.shared.warn("Crypto", "密钥文件权限收紧失败: \(error.localizedDescription)")
+                AppLogger.shared.warn("Crypto", "Cannot restrict key file permissions: \(error.localizedDescription)")
             }
             self.masterKey = newKey
         }
@@ -61,7 +61,7 @@ public final class StorageCrypto: @unchecked Sendable {
         self.hmacKey = derivedHmac
     }
     
-    // MARK: - AES-GCM 加密与解密 (带 AAD 绑定表名与主键)
+    // MARK: - AES-GCM encryption with table and primary-key binding
     
     public func encrypt(plainData: Data, table: String, primaryKey: String) throws -> Data {
         let aad = Data("\(table):\(primaryKey)".utf8)
@@ -90,7 +90,7 @@ public final class StorageCrypto: @unchecked Sendable {
         return str
     }
     
-    // MARK: - HMAC 域名派生检索键
+    // MARK: - HMAC-derived hostname lookup keys
     
     public func computeDomainHMAC(normalizedHost: String) -> String {
         let code = HMAC<SHA256>.authenticationCode(for: Data(normalizedHost.utf8), using: hmacKey)

@@ -1,7 +1,7 @@
 //
-// SWGBar / macOS 菜单栏 TLS 检查检测器
-// 存储仓储层 (Repository.swift)
-// 遵循技术方案 v1.1 第 31-33 章：实体操作、加密字段解密、窗口去重与聚合
+// SWGBar / macOS menu bar TLS inspection detector
+// Storage repository (Repository.swift)
+// Entity operations, encrypted field access, deduplication, and aggregation.
 //
 
 import Foundation
@@ -19,25 +19,25 @@ public final class StorageRepository: @unchecked Sendable {
         }
     }
 
-    /// 事务包装器：将多个写操作合并为单个 SQLite 事务，减少 WAL 同步次数（N→1）
+    /// Combine writes in one SQLite transaction to reduce WAL synchronization.
     public func transaction<T>(_ block: () throws -> T) throws -> T {
         return try db.transaction(block)
     }
 
-    // 目标域名解密内存缓存：避免对不可变主机名反复执行高开销的 AES-GCM 解密计算
+    // Cache decrypted immutable hostnames to avoid repeated AES-GCM operations.
     private var hostnameCache: [String: String] = [:]
     private let hostnameCacheLock = NSLock()
 
-    // 目标 Key ("host:port") -> Target ID 内存映射高速缓存：避免对热点域名重复计算 HMAC 与查询数据库
+    // Cache host:port to target ID mappings to avoid repeated HMAC calculation and database lookup.
     private var targetIdCache: [String: String] = [:]
     private let targetIdCacheLock = NSLock()
 
-    // 解密失败计数：列表遍历属高频路径，逐条打印会刷爆日志，按窗口聚合后输出一条
+    // Aggregate decryption failures into one periodic log entry rather than logging each failed row.
     private var decryptFailureCount: Int = 0
     private var lastDecryptFailureLogAt: TimeInterval = 0
     private let decryptFailureLock = NSLock()
 
-    /// 记录一次字段解密失败；同一窗口内仅输出一条汇总，避免刷屏
+    /// Record a field decryption failure and emit one summary per reporting window.
     private func noteDecryptFailure(scope: String) {
         decryptFailureLock.lock()
         decryptFailureCount += 1
@@ -51,11 +51,11 @@ public final class StorageRepository: @unchecked Sendable {
         decryptFailureLock.unlock()
 
         if shouldLog {
-            AppLogger.shared.warn("Storage", "字段解密失败已累计 \(total) 条（最近一次: \(scope)），相关记录本次被跳过")
+            AppLogger.shared.warn("Storage", "Could not decrypt \(total) fields (latest scope: \(scope)); affected records were skipped")
         }
     }
 
-    // MARK: - 网络阶段 (network_epochs)
+    // MARK: - Network epochs (network_epochs)
 
     public func createEpoch(id: String, name: String, routeDigest: String, startMs: Int64) throws {
         let sql = "INSERT OR REPLACE INTO network_epochs (id, start_ms, route_digest, name) VALUES (?, ?, ?, ?);"
@@ -67,7 +67,7 @@ public final class StorageRepository: @unchecked Sendable {
         _ = stmt.step()
     }
 
-    // MARK: - 清空所有历史探测与目标数据
+    // MARK: - Clear historical probe and target data
     public func clearAllHistoricalData() throws {
         try db.execute(sql: "DELETE FROM classifications;")
         try db.execute(sql: "DELETE FROM observation_certificates;")
@@ -84,7 +84,7 @@ public final class StorageRepository: @unchecked Sendable {
         targetIdCacheLock.unlock()
     }
 
-    // MARK: - 设置项 (settings)
+    // MARK: - Settings (settings)
 
     public static let browserHistoryImportedKey = "browser_history_imported"
 
@@ -128,7 +128,7 @@ public final class StorageRepository: @unchecked Sendable {
         try setSetting(Self.historicalBaselineProbeDoneKey, value: "1")
     }
 
-    // MARK: - 清理早期未提取端口时产生的 443 幽灵目标并合并请求计数
+    // MARK: - Merge legacy phantom port-443 targets and their request counts
     public func cleanupPhantomPort443Targets() throws {
         guard let targets = try? listTargetsWithLatestVerdict(limit: 5000) else { return }
         var byHost: [String: [DomainRow]] = [:]
@@ -158,13 +158,13 @@ public final class StorageRepository: @unchecked Sendable {
         }
     }
 
-    // MARK: - 目标表 (targets)
+    // MARK: - Targets (targets)
 
     public func getOrCreateTarget(hostname: String, port: Int, isIpOnly: Bool = false, requestCount: Int64 = 0) throws -> String {
         let effectivePort = port > 0 ? port : 443
         let targetKey = "\(hostname.lowercased()):\(effectivePort)"
 
-        // 1. 优先命中内存缓存 (0ms 零开销)
+        // 1. Try the in-memory cache first.
         targetIdCacheLock.lock()
         if let cachedId = targetIdCache[targetKey] {
             targetIdCacheLock.unlock()
@@ -175,7 +175,7 @@ public final class StorageRepository: @unchecked Sendable {
         }
         targetIdCacheLock.unlock()
 
-        // 2. 未命中时计算 HMAC 并检索数据库
+        // 2. On a cache miss, calculate the HMAC and query the database.
         let hmac = crypto.computeDomainHMAC(normalizedHost: targetKey)
         let checkSql = "SELECT id, request_count FROM targets WHERE host_hmac = ?;"
         let checkStmt = try db.prepare(sql: checkSql)
@@ -190,7 +190,7 @@ public final class StorageRepository: @unchecked Sendable {
             return existingId
         }
 
-        // 兼容旧版：若为 443 端口且存在旧版无端口的 host_hmac，无缝平移升级为带端口的 hmac
+        // Migrate a legacy hostname-only HMAC to the hostname/port key when the port is 443.
         if effectivePort == 443 {
             let oldHmac = crypto.computeDomainHMAC(normalizedHost: hostname.lowercased())
             let oldCheckStmt = try db.prepare(sql: "SELECT id, request_count FROM targets WHERE host_hmac = ?;")
@@ -272,7 +272,7 @@ public final class StorageRepository: @unchecked Sendable {
         return 0
     }
 
-    /// 原子递增目标请求计数（单条 SQL 避免往返，性能提升 10 倍以上）
+    /// Increment the target request count atomically in one SQL statement.
     public func atomicIncrementRequestCount(targetId: String, count: Int64 = 1) throws {
         let sql = "UPDATE targets SET request_count = request_count + ? WHERE id = ?;"
         try db.withCachedStatement(sql: sql) { stmt in
@@ -375,7 +375,7 @@ public final class StorageRepository: @unchecked Sendable {
         return rows
     }
 
-    /// 尚未产生任何观测的目标（按域名+端口唯一，每批最多 `limit` 条）
+    /// Return at most limit unique hostname/port targets without observations.
     public func listTargetsNeverProbed(limit: Int = 50) throws -> [(targetId: String, hostname: String, port: Int)] {
         let sql = """
         SELECT t.id, t.host_cipher, t.port
@@ -496,7 +496,7 @@ public final class StorageRepository: @unchecked Sendable {
             }
             let verdictStr = stmt.columnText(index: 4) ?? "unknown"
             let verdict = Verdict(rawValue: verdictStr) ?? .unknown
-            let reason = stmt.columnText(index: 5) ?? "尚未完成深入探测"
+            let reason = stmt.columnText(index: 5) ?? "Probe not completed"
             let caClusterId = stmt.columnText(index: 6)
             let caName = stmt.columnText(index: 7)
             let egressInterface = stmt.columnText(index: 8)
@@ -522,7 +522,7 @@ public final class StorageRepository: @unchecked Sendable {
             hostname: hostname,
             port: port,
             verdict: .unknown,
-            reason: "已从浏览器历史记录发现该域名，等待发起主动探测",
+            reason: "Discovered in browser history; awaiting an active probe",
             requestCount: requestCount,
             lastObservedMs: Int64(Date().timeIntervalSince1970 * 1000),
             remoteIp: nil,
@@ -534,7 +534,7 @@ public final class StorageRepository: @unchecked Sendable {
         )
     }
 
-    // MARK: - 证书表 (certificates)
+    // MARK: - Certificates (certificates)
 
     public func saveCertificate(
         certId: String,
@@ -575,7 +575,7 @@ public final class StorageRepository: @unchecked Sendable {
         _ = stmt.step()
     }
 
-    // MARK: - 业务观察 (observations)
+    // MARK: - Observations (observations)
 
     public struct ObservationRecord {
         public let id: String
@@ -638,7 +638,7 @@ public final class StorageRepository: @unchecked Sendable {
             do {
                 ipCipher = try crypto.encryptString(ip, table: "observations", primaryKey: obs.id)
             } catch {
-                AppLogger.shared.warn("Storage", "远端 IP 加密失败，该观测将不记录 IP: \(error)")
+                AppLogger.shared.warn("Storage", "Cannot encrypt the remote IP; the observation will omit it: \(error)")
             }
         }
 
@@ -680,7 +680,7 @@ public final class StorageRepository: @unchecked Sendable {
         }
     }
 
-    // MARK: - 分类 (classifications)
+    // MARK: - Classifications (classifications)
 
     public func saveClassification(obsId: String, revision: Int64, verdict: Verdict, reason: String) throws {
         let now = Int64(Date().timeIntervalSince1970 * 1000)
@@ -697,7 +697,7 @@ public final class StorageRepository: @unchecked Sendable {
         }
     }
 
-    // MARK: - CA 聚类 (ca_clusters)
+    // MARK: - CA clusters (ca_clusters)
 
     public func upsertCACluster(spkiSha256: String, caName: String, identityKind: String, certId: String) throws -> String {
         let checkSql = "SELECT id FROM ca_clusters WHERE ca_key_id = ?;"
@@ -798,7 +798,7 @@ public final class StorageRepository: @unchecked Sendable {
                     certSha256: certSha,
                     spkiSha256: certSpki.isEmpty ? spki : certSpki,
                     extraTrustVerifiedPath: [name, "macOS System Trust"],
-                    baselineStatus: (kind == "inspection" ? "公共路径未建立 (SWG中间代理)" : (kind == "public" ? "公共路径" : "公共路径未建立")),
+                    baselineStatus: (kind == "inspection" ? "Public path not established (inspection proxy)" : (kind == "public" ? "Public path" : "Public path not established")),
                     activeRule: (kind == "inspection" ? Rule(
                         ruleId: "rule_\(id)",
                         name: name,
@@ -807,7 +807,7 @@ public final class StorageRepository: @unchecked Sendable {
                         matchValue: name,
                         domainScope: nil,
                         origin: "system",
-                        explanation: "SWG 检查代理证书",
+                        explanation: "TLS inspection proxy certificate",
                         expiresAtMs: nil,
                         revision: 1
                     ) : nil),
@@ -826,12 +826,12 @@ public final class StorageRepository: @unchecked Sendable {
         return max(total, 1)
     }
 
-    /// 获取指定 CA 签发或拦截过的所有不同主机名列表
+    /// List distinct hostnames associated with certificates issued or inspected by this CA.
     public func listHostnamesForCA(clusterId: String = "", spki: String = "", caName: String = "") throws -> [String] {
         var hosts: [String] = []
 
-        // 1. 若提供了 clusterId，优先精确匹配该 CA 聚类关联的 cluster_certificates
-        // 保证与 CA 详情页及列表页的 affectedDomainsCount 统计口径 100% 绝对一致
+        // 1. Prefer exact cluster_certificates associations when a clusterId is available.
+        // Use the same association rules as affectedDomainsCount in the list and detail views.
         if !clusterId.isEmpty {
             let clusterSql = """
             SELECT DISTINCT t.id, t.host_cipher
@@ -865,7 +865,7 @@ public final class StorageRepository: @unchecked Sendable {
             }
         }
 
-        // 2. 若 clusterId 未命中或未提供，则回退使用 SPKI / Subject / Issuer 模式匹配（兼容测试样例与离线根证书）
+        // 2. Fall back to SPKI, subject, or issuer matching for fixtures and offline roots.
         if hosts.isEmpty && (!spki.isEmpty || !caName.isEmpty) {
             let fallbackSql = """
             SELECT DISTINCT t.id, t.host_cipher
@@ -908,7 +908,7 @@ public final class StorageRepository: @unchecked Sendable {
         return hosts
     }
 
-    /// 计算指定 CA 拦截的不同主域名 (Apex Domain) 数量与不同域名总数量
+    /// Count distinct apex domains and all distinct hostnames associated with a CA.
     public func countDistinctDomainsForCA(spki: String, caName: String) throws -> (total: Int, apex: Int) {
         let hosts = try listHostnamesForCA(spki: spki, caName: caName)
         let uniqueHosts = Set(hosts)
@@ -961,7 +961,7 @@ public final class StorageRepository: @unchecked Sendable {
         _ = stmt.step()
     }
 
-    // MARK: - 规则 (rules)
+    // MARK: - Rules (rules)
 
     public func upsertRule(_ rule: Rule) throws {
         let now = Int64(Date().timeIntervalSince1970 * 1000)
@@ -985,17 +985,17 @@ public final class StorageRepository: @unchecked Sendable {
         stmt.bindInt64(now, index: 12)
         _ = stmt.step()
 
-        // 当保存 inspection_ca 规则时，即刻回溯重分类历史所有关联域名
+        // Saving an inspection_ca rule immediately reclassifies associated historical domains.
         if rule.kind == "inspection_ca" {
             do {
                 try reclassifyObservationsForRule(rule)
             } catch {
-                AppLogger.shared.error("Storage", "规则回溯重分类失败，历史判定未更新 rule=\(rule.ruleId): \(error)")
+                AppLogger.shared.error("Storage", "Rule-based reclassification failed; historical verdicts were not updated, rule=\(rule.ruleId): \(error)")
             }
         }
     }
 
-    /// 将指定 CA 签发的所有历史观测一键全部升级为【已确认】(Confirmed)
+    /// Upgrade historical observations associated with this CA to confirmed inspection.
     public func upgradeAllToConfirmedForCA(caName: String, spkiSha256: String) throws {
         guard !caName.isEmpty || !spkiSha256.isEmpty else { return }
         let now = Int64(Date().timeIntervalSince1970 * 1000)
@@ -1015,7 +1015,7 @@ public final class StorageRepository: @unchecked Sendable {
         stmt.bindText("%\(caName)%", index: 4)
         _ = stmt.step()
 
-        // 同时将 ca_clusters 表中的 identity_kind 升级为 inspection
+        // Also set the cluster's identity_kind to inspection.
         let clusterSql = "UPDATE ca_clusters SET identity_kind = 'inspection' WHERE ca_key_id = ? OR ca_name LIKE ?;"
         let cStmt = try db.prepare(sql: clusterSql)
         cStmt.bindText(spkiSha256, index: 1)
@@ -1053,7 +1053,7 @@ public final class StorageRepository: @unchecked Sendable {
         _ = stmt.step()
     }
 
-    // MARK: - 事件 (events)
+    // MARK: - Events (events)
 
     public func logEvent(kind: String, title: String, detail: String, category: String, isChange: Bool = true) throws {
         let now = Int64(Date().timeIntervalSince1970 * 1000)
@@ -1119,7 +1119,7 @@ public final class StorageRepository: @unchecked Sendable {
         return events
     }
 
-    // MARK: - 指标聚合与查询 (遵照第 04, 05, 32 章)
+    // MARK: - Metric aggregation and queries
 
     public func queryMetricCounts(source: EvidenceSource, epochId: String = "", windowStartMs: Int64 = 0, windowEndMs: Int64 = 0) throws -> MetricCounts {
         var whereClauses = ["source = ?", "is_own_traffic = 0"]
@@ -1208,7 +1208,7 @@ public final class StorageRepository: @unchecked Sendable {
         }
     }
 
-    // MARK: - 清理与截断 (Retention)
+    // MARK: - Retention and pruning
 
     public func pruneOldObservations(retentionHours: Int, maxCount: Int = 250000) throws -> (pruned: Int, reachedSoftLimit: Bool) {
         let cutoffMs = Int64((Date().timeIntervalSince1970 - Double(retentionHours * 3600)) * 1000)
@@ -1217,7 +1217,7 @@ public final class StorageRepository: @unchecked Sendable {
         stmt.bindInt64(cutoffMs, index: 1)
         _ = stmt.step()
 
-        // 检查总数是否超过软限额
+        // Check whether the total exceeds the soft limit.
         let countSql = "SELECT COUNT(*) FROM observations;"
         let countStmt = try db.prepare(sql: countSql)
         var total: Int64 = 0
@@ -1239,7 +1239,7 @@ public final class StorageRepository: @unchecked Sendable {
             _ = excessStmt.step()
         }
 
-        // 清理孤立证书
+        // Remove unreferenced certificates.
         let cleanCertSql = """
         DELETE FROM certificates WHERE cert_id NOT IN (
             SELECT DISTINCT cert_id FROM observation_certificates

@@ -1,7 +1,7 @@
 //
-// SWGBar / macOS 菜单栏 TLS 检查检测器
-// 存储与性能压力测试 (DatabasePerformanceTests.swift)
-// 遵循技术方案 v1.1 第 34, 37, 38 章：L2/L5 负载目标、WAL 写入与聚合查询时延
+// SWGBar / macOS menu bar TLS inspection detector
+// Storage and performance tests (DatabasePerformanceTests.swift)
+// Exercise batch inserts, WAL-backed storage, aggregate queries, and retention.
 //
 
 import XCTest
@@ -24,23 +24,23 @@ final class DatabasePerformanceTests: XCTestCase {
         repo = nil
     }
     
-    // MARK: - 字段加密与 HMAC 索引验证
+    // MARK: - Field encryption and HMAC lookup
     func testCryptoAndHMACConsistency() throws {
         let testHost = "api.internal.corp.example"
         let targetId = try repo.getOrCreateTarget(hostname: testHost, port: 443)
         
         let retrieved = try repo.getTargetHostname(targetId: targetId)
-        XCTAssertEqual(retrieved, testHost, "解密后的域名必须与原始输入完全一致")
+        XCTAssertEqual(retrieved, testHost, "The decrypted hostname must match its original input")
         
-        // 再次获取同一域名，应当命中已存在的 targetId
+        // Looking up the same hostname again must return the existing targetId.
         let secondId = try repo.getOrCreateTarget(hostname: testHost, port: 443)
-        XCTAssertEqual(targetId, secondId, "相同域名必须通过 HMAC 唯一命中同一 target")
+        XCTAssertEqual(targetId, secondId, "Identical hostnames must resolve to one target through HMAC")
     }
     
-    // MARK: - L2 模型层批量写入与聚合查询性能 (< 50ms 目标)
+    // MARK: - Batch writes and aggregate query performance (50 ms query target)
     func testL2ModelLayerBatchAndAggregation() throws {
         let epochId = "epoch-perf"
-        try repo.createEpoch(id: epochId, name: "性能测试阶段", routeDigest: "digest-perf", startMs: 1000)
+        try repo.createEpoch(id: epochId, name: "Performance test epoch", routeDigest: "digest-perf", startMs: 1000)
         
         let start = Date()
         let batchCount = 1000
@@ -65,9 +65,9 @@ final class DatabasePerformanceTests: XCTestCase {
             }
         }
         let insertDuration = Date().timeIntervalSince(start)
-        XCTAssertLessThan(insertDuration, 1.5, "1000 条观测批量写入事务应在 1.5 秒内完成")
+        XCTAssertLessThan(insertDuration, 1.5, "A transaction inserting 1,000 observations must finish within 1.5 seconds")
         
-        // 测试聚合查询时延 (目标 < 50ms)
+        // Measure aggregate query latency against the 50 ms target.
         let queryStart = Date()
         let counts = try repo.queryMetricCounts(
             source: .nativeProbe,
@@ -81,16 +81,16 @@ final class DatabasePerformanceTests: XCTestCase {
         XCTAssertEqual(counts.confirmed, 100)
         XCTAssertEqual(counts.suspected, 100) // (i%5==0 and not i%10==0) = 100
         XCTAssertEqual(counts.publicPath, 800)
-        XCTAssertLessThan(queryDurationMs, 50.0, "聚合查询在窗口内应当在 50ms 内完成 (实际: \(queryDurationMs)ms)")
+        XCTAssertLessThan(queryDurationMs, 50.0, "The aggregate query must finish within 50 ms (actual: \(queryDurationMs) ms)")
     }
     
-    // MARK: - 数据清理与软限额测试
+    // MARK: - Retention and soft limits
     func testDataPruningAndRetention() throws {
         let epochId = "epoch-prune"
-        try repo.createEpoch(id: epochId, name: "清理测试阶段", routeDigest: "digest-prune", startMs: 1000)
+        try repo.createEpoch(id: epochId, name: "Retention test epoch", routeDigest: "digest-prune", startMs: 1000)
         let now = Int64(Date().timeIntervalSince1970 * 1000)
         
-        // 插入一条 25 小时前的记录和一条 1 小时前的记录
+        // Insert observations from 25 hours ago and one hour ago.
         let oldTargetId = try repo.getOrCreateTarget(hostname: "old.example.com", port: 443)
         let obsOld = StorageRepository.ObservationRecord(
             id: "obs_old",
@@ -115,16 +115,16 @@ final class DatabasePerformanceTests: XCTestCase {
         )
         try repo.saveObservation(obsNew)
         
-        // 执行 24 小时明细保留裁剪
+        // Prune detailed observations using a 24-hour retention window.
         _ = try repo.pruneOldObservations(retentionHours: 24, maxCount: 250000)
         
-        // 验证旧记录被清理，新记录保留
+        // Verify that the older observation was removed and the recent one remains.
         let checkOld = try db.prepare(sql: "SELECT COUNT(*) FROM observations WHERE id = 'obs_old';")
         _ = checkOld.step()
-        XCTAssertEqual(checkOld.columnInt(index: 0), 0, "25小时前的明细应被裁剪")
+        XCTAssertEqual(checkOld.columnInt(index: 0), 0, "Records older than 25 hours must be pruned")
         
         let checkNew = try db.prepare(sql: "SELECT COUNT(*) FROM observations WHERE id = 'obs_new';")
         _ = checkNew.step()
-        XCTAssertEqual(checkNew.columnInt(index: 0), 1, "1小时前的明细应被保留")
+        XCTAssertEqual(checkNew.columnInt(index: 0), 1, "Records from one hour ago must be retained")
     }
 }

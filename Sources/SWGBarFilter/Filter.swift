@@ -1,7 +1,7 @@
 //
-// SWGBar / macOS 菜单栏 TLS 检查检测器
-// 系统流采集与域名归一化 (Filter.swift)
-// 遵循技术方案 v1.1 第 07-08 章：非阻塞、立即放行、域名归一化与隐私保护
+// SWGBar / macOS menu bar TLS inspection detector
+// System flow metadata and hostname normalization (Filter.swift)
+// Nonblocking metadata processing, immediate traffic allowance, and hostname normalization.
 //
 
 import Foundation
@@ -41,7 +41,7 @@ public struct FlowMetadata: Sendable {
 
 public typealias DomainNormalizer = SWGBarContracts.DomainNormalizer
 
-/// 有界非阻塞流队列（第 07 & 34.1 章）：≤8 MiB / 8192 项，满则计数丢弃，绝不阻塞网络
+/// Bound the queue to 8 MiB or 8,192 entries; count and drop overflow without blocking traffic.
 public final class BoundedFlowQueue: @unchecked Sendable {
     private var queue: [FlowMetadata] = []
     private let capacity: Int
@@ -57,7 +57,7 @@ public final class BoundedFlowQueue: @unchecked Sendable {
         defer { lock.unlock() }
         if queue.count >= capacity {
             droppedCount += 1
-            return false // 满则丢弃
+            return false // Drop the event when the queue is full.
         }
         queue.append(metadata)
         return true

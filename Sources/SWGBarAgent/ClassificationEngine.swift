@@ -1,7 +1,7 @@
 //
-// SWGBar / macOS 菜单栏 TLS 检查检测器
-// 分类判定与 CA 聚类引擎 (ClassificationEngine.swift)
-// 遵循技术方案 v1.1 第 12 章：严格按证据强度执行，互斥分类，冲突检测
+// SWGBar / macOS menu bar TLS inspection detector
+// Classification and CA clustering engine (ClassificationEngine.swift)
+// Classify by evidence strength with mutually exclusive verdicts and rule conflict detection.
 //
 
 import Foundation
@@ -34,7 +34,7 @@ public final class ClassificationEngine: @unchecked Sendable {
     
     public init() {}
     
-    /// 执行证据分类判定
+    /// Classify the available evidence.
     public func classify(
         hostname: String,
         port: Int,
@@ -49,10 +49,10 @@ public final class ClassificationEngine: @unchecked Sendable {
         caSubjects: [String],
         isExtraTrustAnchor: Bool,
         extraAnchorSubject: String? = nil,
-        caDomainRecurrenceCount: Int, // 同一 CA 在不同公共域名出现的次数
+        caDomainRecurrenceCount: Int, // Number of distinct public domains where this CA has appeared
         rules: [Rule]
     ) -> ClassificationResult {
-        // 1. 范围排除 (X)
+        // 1. Scope exclusions (X)
         if !isIpv4 || !isHttps || isOwnTraffic {
             return ClassificationResult(
                 verdict: .excluded,
@@ -60,7 +60,7 @@ public final class ClassificationEngine: @unchecked Sendable {
             )
         }
         
-        // 2. 证据完整性 (U)
+        // 2. Evidence completeness (U)
         if !handshakeCompleted || presentedCertIds.isEmpty {
             return ClassificationResult(
                 verdict: .unknown,
@@ -68,11 +68,11 @@ public final class ClassificationEngine: @unchecked Sendable {
             )
         }
         
-        // 提取主要 CA 指纹与名称 (最接近叶子的中间证书或根证书)
+        // Extract the primary CA fingerprint and name, using the intermediate nearest the leaf or the root.
         let primarySPKI = presentedSpkiIds.count > 1 ? presentedSpkiIds[1] : presentedSpkiIds.first
         let primaryName = caSubjects.count > 1 ? caSubjects[1] : (caSubjects.first ?? "Unknown CA")
         
-        // 3. 检查规则匹配与冲突检测
+        // 3. Match rules and detect conflicts.
         let now = Int64(Date().timeIntervalSince1970 * 1000)
         let activeRules = rules.filter { rule in
             if let exp = rule.expiresAtMs, exp < now { return false }
@@ -91,7 +91,7 @@ public final class ClassificationEngine: @unchecked Sendable {
                 (extraAnchorSubject != nil && extraAnchorSubject!.localizedCaseInsensitiveContains(rule.matchValue))
             )
             
-            // 如果规则名称匹配当前连接的 extraAnchorSubject 或任一证书 Subject
+            // Match the rule name against extraAnchorSubject or a presented certificate subject.
             let matchesAnchorSubject = (extraAnchorSubject != nil && !rule.name.isEmpty && (
                 extraAnchorSubject!.localizedCaseInsensitiveContains(rule.name) ||
                 rule.name.localizedCaseInsensitiveContains(extraAnchorSubject!)
@@ -115,9 +115,9 @@ public final class ClassificationEngine: @unchecked Sendable {
             }
         }
         
-        // 4. 明确检查身份规则 (C)
+        // 4. Explicit inspection identity rules (C)
         if let inspRule = matchedInspectionRule {
-            // 条件 1 约束：必须无法通过公网校验，才允许确认为中间人检查身份
+            // Condition 1: public validation must fail before confirming inspection.
             if !publicPkixPassed {
                 return ClassificationResult(
                     verdict: .confirmedInspection,
@@ -129,7 +129,7 @@ public final class ClassificationEngine: @unchecked Sendable {
             }
         }
         
-        // 6. 公共基线验证通过 或 根证书为系统原生公共根（非额外私有信任根）(P)
+        // 6. Public baseline validation passed, or the root is a built-in public trust anchor (P).
         if nativeAccepted && (publicPkixPassed || !isExtraTrustAnchor) {
             return ClassificationResult(
                 verdict: .publicPath,
@@ -139,11 +139,11 @@ public final class ClassificationEngine: @unchecked Sendable {
             )
         }
         
-        // 7. 原生信任接受且属于用户/管理员额外安装的私有根证书 (isExtraTrustAnchor == true)
-        // 此时已满足条件 1 (无法通过公网证书校验，通过添加到本机的受信任根证书校验)
+        // 7. Native trust accepted an additional user or administrator root (isExtraTrustAnchor == true).
+        // Condition 1 is met: public validation failed and a locally added root was trusted.
         if nativeAccepted && isExtraTrustAnchor {
             if caDomainRecurrenceCount > 10 {
-                // 条件 2: 多个不同的域名（超过10个）都是用 1 个相同的证书 -> 确认状态 (C)
+                // Condition 2: one private CA appears across more than 10 distinct domains, confirming inspection (C).
                 return ClassificationResult(
                     verdict: .confirmedInspection,
                     reason: "SWG_INTERCEPTION_CONFIRMED: Exceeds 10 distinct domains (count=\(caDomainRecurrenceCount))",
@@ -151,7 +151,7 @@ public final class ClassificationEngine: @unchecked Sendable {
                     primaryCAName: primaryName
                 )
             } else if caDomainRecurrenceCount >= 2 {
-                // 尚未达到超过10个不同域名的确认阈值，但已跨域名复现 -> 疑似状态 (S)
+                // Cross-domain recurrence below the confirmation threshold remains suspected (S).
                 return ClassificationResult(
                     verdict: .suspectedInspection,
                     reason: "EXTRA_TRUST_RECURRENCE_ACROSS_PUBLIC_DOMAINS (count=\(caDomainRecurrenceCount))",
@@ -159,7 +159,7 @@ public final class ClassificationEngine: @unchecked Sendable {
                     primaryCAName: primaryName
                 )
             } else {
-                // 单个域名私有信任，尚未跨域名复现 -> 未知 (U)
+                // Private trust on a single domain remains unknown (U).
                 return ClassificationResult(
                     verdict: .unknown,
                     reason: "EXTRA_PRIVATE_TRUST_NO_RECURRENCE",
@@ -169,7 +169,7 @@ public final class ClassificationEngine: @unchecked Sendable {
             }
         }
         
-        // 8. 默认未知 (U)
+        // 8. Default to unknown (U).
         return ClassificationResult(
             verdict: .unknown,
             reason: "CERT_VERIFICATION_FAILED_OR_REJECTED",

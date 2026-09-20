@@ -1,7 +1,7 @@
 //
-// SWGBar / macOS 菜单栏 TLS 检查检测器
-// 域名详情：证据、只读展示与溯源 (DomainDetailView.swift)
-// 遵循技术方案 v1.1 第 19 章与现代化 macOS 卡片化视觉设计
+// SWGBar / macOS menu bar TLS inspection detector
+// Domain details: evidence, read-only fields, and provenance (DomainDetailView.swift)
+// Display domain evidence in native macOS cards.
 //
 
 import SwiftUI
@@ -28,7 +28,7 @@ public struct DomainDetailView: View {
 
         ScrollView(.vertical, showsIndicators: true) {
             VStack(alignment: .leading, spacing: 12) {
-                // 顶部返回导航 (DD01)
+                // Back navigation (DD01)
                 HStack {
                     Button(action: {
                         vm.selectedDomainId = nil
@@ -36,7 +36,7 @@ public struct DomainDetailView: View {
                         HStack(spacing: 4) {
                             Image(systemName: "chevron.backward")
                                 .font(.system(size: 11, weight: .medium))
-                            Text("返回域名列表")
+                            Text("Back to domains")
                                 .font(UITheme.subFont)
                         }
                         .foregroundColor(.secondary)
@@ -52,7 +52,7 @@ public struct DomainDetailView: View {
                 }
                 .padding(.top, 2)
 
-                // 域名核心信息与状态看板 (Hero Banner)
+                // Domain identity and verdict summary
                 HStack(alignment: .center, spacing: 10) {
                     Image(systemName: verdictIconName(for: detail.verdict))
                         .font(.system(size: 22))
@@ -69,7 +69,7 @@ public struct DomainDetailView: View {
                                 .lineLimit(1)
                                 .truncationMode(.middle)
 
-                            CopyButton(text: detail.hostname, tooltip: "复制域名", size: 9, padding: 3)
+                            CopyButton(text: detail.hostname, tooltip: "Copy hostname", size: 9, padding: 3)
                         }
 
                         Text(ipAddress)
@@ -90,48 +90,48 @@ public struct DomainDetailView: View {
                 .padding(12)
                 .liquidGlassCard(cornerRadius: 12)
 
-                // 卡片 1: 网络信息
+                // Card 1: Network details
                 VStack(alignment: .leading, spacing: 8) {
-                    sectionHeader(icon: "network", title: "网络信息")
+                    sectionHeader(icon: "network", title: "Network details")
 
                     VStack(spacing: 8) {
-                        cardRow(label: "目标地址", value: targetAddress, isMonospaced: true)
+                        cardRow(label: "Endpoint", value: targetAddress, isMonospaced: true)
                         Divider().opacity(0.4)
 
-                        cardRow(label: "出口网卡", value: detail.egressInterface, isMonospaced: true)
+                        cardRow(label: "Interface", value: detail.egressInterface, isMonospaced: true)
                         Divider().opacity(0.4)
 
-                        cardRow(label: "连接方式", value: detail.routingSummary)
+                        cardRow(label: "Connection", value: detail.routingSummary)
                     }
                     .padding(12)
                     .liquidGlassCard(cornerRadius: 12)
                 }
 
-                // 卡片 2: 访问统计
+                // Card 2: Activity
                 if detail.requestCount > 0 {
                     VStack(alignment: .leading, spacing: 8) {
-                        sectionHeader(icon: "chart.bar", title: "访问统计")
+                        sectionHeader(icon: "chart.bar", title: "Activity")
 
                         VStack(spacing: 8) {
-                            cardRow(label: "请求频次", value: "\(detail.requestCount) 次", highlightValue: true)
+                            cardRow(label: "Requests", value: "\(detail.requestCount) requests", highlightValue: true)
                             Divider().opacity(0.4)
-                            cardRow(label: "最近观察", value: detail.lastObservedFormatted, isMonospaced: true)
+                            cardRow(label: "Last observed", value: detail.lastObservedFormatted, isMonospaced: true)
                         }
                         .padding(12)
                         .liquidGlassCard(cornerRadius: 12)
                     }
                 }
 
-                // 卡片 3: 证书与信任
+                // Card 3: Certificate and trust
                 VStack(alignment: .leading, spacing: 8) {
-                    sectionHeader(icon: "lock.shield", title: "证书与信任")
+                    sectionHeader(icon: "lock.shield", title: "Certificate and trust")
 
                     VStack(alignment: .leading, spacing: 10) {
-                        let isPublicPassed = (detail.verdict == .publicPath || detail.baselineVerdict.contains("已建立"))
-                        let isSystemTrustPassed = (detail.verdict != .unknown && detail.handshakeStatus != "未探测或等待中")
+                        let isPublicPassed = (detail.verdict == .publicPath || detail.baselineVerdict == "Public path established")
+                        let isSystemTrustPassed = (detail.verdict != .unknown && detail.handshakeStatus != "Not probed or pending")
 
                         HStack {
-                            Text("本机系统验证")
+                            Text("System trust")
                                 .font(UITheme.subFont)
                                 .foregroundColor(.secondary)
                                 .frame(width: 88, alignment: .leading)
@@ -155,7 +155,7 @@ public struct DomainDetailView: View {
                         Divider().opacity(0.4)
 
                         HStack {
-                            Text("公网权威验证")
+                            Text("Public PKI")
                                 .font(UITheme.subFont)
                                 .foregroundColor(.secondary)
                                 .frame(width: 88, alignment: .leading)
@@ -176,14 +176,14 @@ public struct DomainDetailView: View {
                             Spacer()
                         }
 
-                        // 关联证书 (DD04: 与域名列表同名同源，点击跳转对应证书详情)
+                        // Associated certificate (DD04): reuse the list's identity and open its matching details.
                         if let certificateName = listRow?.certificateSummary ?? detail.caClusterName {
                             Divider().opacity(0.4)
 
                             let certificateClusterId = listRow?.certificateClusterId ?? detail.caClusterId
 
                             HStack {
-                                Text("关联证书")
+                                Text("Associated certificate")
                                     .font(UITheme.subFont)
                                     .foregroundColor(.secondary)
                                     .frame(width: 88, alignment: .leading)
@@ -217,10 +217,10 @@ public struct DomainDetailView: View {
                     .liquidGlassCard(cornerRadius: 12)
                 }
 
-                // 只读底部提示
+                // Read-only notice
                 HStack {
                     Spacer()
-                    Text("所有探测数据均保留于本地证据库 · 仅供只读分析")
+                    Text("Probe evidence stays on this Mac. Read-only analysis.")
                         .font(.system(size: 10))
                         .foregroundColor(.secondary.opacity(0.6))
                     Spacer()
@@ -233,7 +233,7 @@ public struct DomainDetailView: View {
         }
     }
 
-    // MARK: - 辅助子视图组件
+    // MARK: - Supporting view components
 
     private func sectionHeader(icon: String, title: String) -> some View {
         HStack(spacing: 5) {
@@ -285,4 +285,3 @@ public struct DomainDetailView: View {
     }
 
 }
-

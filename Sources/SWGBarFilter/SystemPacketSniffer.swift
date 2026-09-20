@@ -1,8 +1,8 @@
 //
-// SWGBar / macOS 菜单栏 TLS 检查检测器
-// 系统网络层出站 HTTPS 实时嗅探器 (SystemPacketSniffer.swift)
-// 按 TLS 记录识别 HTTPS（任意 TCP 端口），并用地图 DNS / 连接复用还原域名+真实端口
-// 支持物理网卡 (en*) 与 VPN 虚拟网卡 (utun*) 多链路并发嗅探，自适应以太网与 BSD Loopback (DLT_NULL) 封装
+// SWGBar / macOS menu bar TLS inspection detector
+// Live outbound HTTPS metadata capture (SystemPacketSniffer.swift)
+// Identify TLS records on any TCP port and recover endpoints using DNS mappings and connection reuse.
+// Capture physical and VPN interfaces concurrently, handling Ethernet and BSD loopback encapsulation.
 //
 
 import Foundation
@@ -17,35 +17,35 @@ public final class SystemPacketSniffer: @unchecked Sendable {
     private let flowCache = FlowHostnameCache()
     private var syncTimer: DispatchSourceTimer?
 
-    /// 回调：当在系统网络层捕获到任意应用发起的出站 HTTPS 请求时触发 (hostname, port, remoteIp, egressInterface)
+    /// Invoke the callback when outbound HTTPS metadata is captured: hostname, port, remoteIp, egressInterface.
     public var onTargetCaptured: (@Sendable (String, Int, String, String) -> Void)?
 
-    /// 兼容旧版回调 (hostname, remoteIp)
+    /// Compatibility callback: hostname and remoteIp
     public var onDomainCaptured: (@Sendable (String, String) -> Void)?
 
     public init() {}
 
-    /// 动态获取当前系统所有活跃的出站接口（包含物理网卡 en0/en8 与 VPN 虚拟网卡 utun*）
+    /// Discover active outbound physical and VPN interfaces dynamically.
     public static func getActiveInterfaces() -> [String] {
         var results = Set<String>()
 
-        // 1. 首选：向系统路由表查询公网 IP (1.1.1.1) 的实际出口网卡 (如 VPN 开启时的 utun6，或 en0)
+        // 1. Prefer the interface selected by the routing table for 1.1.1.1.
         if let iface = queryRouteInterface(target: "1.1.1.1") {
             results.insert(iface)
         }
 
-        // 2. 查询系统默认网关对应的出口网卡 (如 en0, en8)
+        // 2. Query the default gateway's interface.
         if let iface = queryRouteInterface(target: "default") {
             results.insert(iface)
         }
 
-        // 3. 扫描活跃网卡：查找所有持有有效 IPv4 地址且处于 UP 状态的 en* 和 utun* 网卡
+        // 3. Find active en* and utun* interfaces with a valid IPv4 address.
         let ifaces = scanActiveInterfacesFromIfconfig()
         for iface in ifaces {
             results.insert(iface)
         }
 
-        // 如果都没查到，默认兜底 en0
+        // Fall back to en0 if discovery returns no interfaces.
         if results.isEmpty {
             results.insert("en0")
         }
@@ -53,7 +53,7 @@ public final class SystemPacketSniffer: @unchecked Sendable {
         return Array(results).sorted()
     }
 
-    /// 兼容旧接口：返回首选活跃出网网卡
+    /// Compatibility API returning the preferred active outbound interface.
     public static func getDefaultInterface() -> String {
         return getActiveInterfaces().first ?? "en0"
     }
@@ -100,7 +100,7 @@ public final class SystemPacketSniffer: @unchecked Sendable {
                 if parts.count >= 2 {
                     let ip = String(parts[1])
                     if !ip.hasPrefix("127.") {
-                        // 只纳入物理网卡 (en*) 与 VPN 虚拟网卡 (utun*)
+                        // Include physical en* and VPN utun* interfaces only.
                         if currentIf.hasPrefix("en") || currentIf.hasPrefix("utun") || currentIf.hasPrefix("eth") {
                             activeInterfaces.append(currentIf)
                         }
@@ -111,30 +111,30 @@ public final class SystemPacketSniffer: @unchecked Sendable {
         return activeInterfaces
     }
 
-    /// 启动系统层实时出站 HTTPS 监听（多网卡自适应并发）
+    /// Start adaptive concurrent HTTPS metadata capture across active interfaces.
     public func start() {
         lock.lock()
         defer { lock.unlock() }
         guard !isRunning else { return }
         isRunning = true
 
-        AppLogger.shared.info("Sniffer", "正在初始化 BPF 网络层多网卡实时嗅探器...")
+        AppLogger.shared.info("Sniffer", "Initializing BPF capture across active interfaces...")
         checkAndSyncInterfacesLocked()
         startInterfaceSyncTimerLocked()
     }
 
-    /// 停止监听所有网卡
+    /// Stop capture on all interfaces.
     public func stop() {
         lock.lock()
         defer { lock.unlock() }
-        AppLogger.shared.info("Sniffer", "正在停止系统网络嗅探器...")
+        AppLogger.shared.info("Sniffer", "Stopping network capture...")
         isRunning = false
 
         syncTimer?.cancel()
         syncTimer = nil
 
         for (iface, proc) in activeProcesses {
-            AppLogger.shared.info("Sniffer", "停止网卡 [\(iface)] 抓包进程 (PID: \(proc.processIdentifier))")
+            AppLogger.shared.info("Sniffer", "Stopping capture on interface [\(iface)] (PID: \(proc.processIdentifier))")
             proc.terminate()
         }
         activeProcesses.removeAll()
@@ -158,12 +158,12 @@ public final class SystemPacketSniffer: @unchecked Sendable {
         let currentCandidates = Set(Self.getActiveInterfaces())
         let existing = Set(activeProcesses.keys)
 
-        // 启动新增网卡的嗅探
+        // Start capture on newly discovered interfaces.
         for iface in currentCandidates.subtracting(existing) {
             startSnifferProcessLocked(for: iface)
         }
 
-        // 停止已经失效或移除的网卡
+        // Stop capture on interfaces that are no longer available.
         for iface in existing.subtracting(currentCandidates) {
             stopSnifferProcessLocked(for: iface)
         }
@@ -172,17 +172,17 @@ public final class SystemPacketSniffer: @unchecked Sendable {
     private func startSnifferProcessLocked(for iface: String) {
         guard activeProcesses[iface] == nil else { return }
 
-        AppLogger.shared.info("Sniffer", "正在为网卡 [\(iface)] 启动 tcpdump 抓包子进程...")
+        AppLogger.shared.info("Sniffer", "Starting tcpdump capture on interface [\(iface)]...")
 
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: "/usr/sbin/tcpdump")
-        // -i: 监听系统出站网卡
-        // -n: 不做反向 DNS
-        // -s 1500: 截取前 1500 字节
-        // -U: 逐包实时刷新缓冲区
-        // -w -: 输出标准 pcap 二进制流至 stdout
-        // TCP 不按端口过滤：HTTPS 靠 TLS 记录识别，端口以包里的真实目的端口为准。
-        // UDP/53 学 DNS；QUIC 无稳定跨端口指纹，只听默认 UDP/443。
+        // -i: select the outbound interface.
+        // -n: disable reverse DNS lookup.
+        // -s 1500: capture the first 1,500 bytes of each packet.
+        // -U: flush packets immediately.
+        // -w -: write the binary pcap stream to standard output.
+        // Do not filter TCP by port: detect TLS records and use each packet's actual destination port.
+        // Learn DNS on UDP/53; observe QUIC on its default UDP/443 port.
         proc.arguments = [
             "-i", iface,
             "-n",
@@ -200,7 +200,7 @@ public final class SystemPacketSniffer: @unchecked Sendable {
         errPipe.fileHandleForReading.readabilityHandler = { handle in
             let data = handle.availableData
             if let errStr = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines), !errStr.isEmpty {
-                AppLogger.shared.warn("Sniffer", "[\(iface)] tcpdump 警告/输出: \(errStr)")
+                AppLogger.shared.warn("Sniffer", "[\(iface)] tcpdump warning/output: \(errStr)")
             }
         }
 
@@ -208,9 +208,9 @@ public final class SystemPacketSniffer: @unchecked Sendable {
             guard let self = self else { return }
             let code = p.terminationStatus
             if code != 0 {
-                AppLogger.shared.warn("Sniffer", "⚠️ [\(iface)] tcpdump 进程退出 (退出码: \(code))")
+                AppLogger.shared.warn("Sniffer", "⚠️ [\(iface)] tcpdump exited (status: \(code))")
             } else {
-                AppLogger.shared.info("Sniffer", "[\(iface)] tcpdump 抓包进程正常退出。")
+                AppLogger.shared.info("Sniffer", "[\(iface)] tcpdump capture process exited normally.")
             }
             self.lock.lock()
             if self.activeProcesses[iface] === p {
@@ -222,9 +222,9 @@ public final class SystemPacketSniffer: @unchecked Sendable {
         do {
             try proc.run()
             self.activeProcesses[iface] = proc
-            AppLogger.shared.info("Sniffer", "✅ 网卡 [\(iface)] tcpdump 抓包进程启动成功 (PID: \(proc.processIdentifier))")
+            AppLogger.shared.info("Sniffer", "✅ Interface [\(iface)] tcpdump capture started (PID: \(proc.processIdentifier))")
         } catch {
-            AppLogger.shared.error("Sniffer", "❌ 网卡 [\(iface)] 无法启动 tcpdump 抓包子进程: \(error.localizedDescription)")
+            AppLogger.shared.error("Sniffer", "❌ Interface [\(iface)] could not start tcpdump capture: \(error.localizedDescription)")
             return
         }
 
@@ -236,7 +236,7 @@ public final class SystemPacketSniffer: @unchecked Sendable {
 
     private func stopSnifferProcessLocked(for iface: String) {
         if let proc = activeProcesses.removeValue(forKey: iface) {
-            AppLogger.shared.info("Sniffer", "正在终止网卡 [\(iface)] 抓包进程 (PID: \(proc.processIdentifier))")
+            AppLogger.shared.info("Sniffer", "Terminating capture on interface [\(iface)] (PID: \(proc.processIdentifier))")
             proc.terminate()
         }
     }
@@ -244,7 +244,7 @@ public final class SystemPacketSniffer: @unchecked Sendable {
     private func readPcapLoop(handle: FileHandle, interface: String) {
         var streamBuffer = Data()
         var hasReadGlobalHeader = false
-        var linkType: UInt32 = 1 // 默认以太网 DLT_EN10MB
+        var linkType: UInt32 = 1 // Default to Ethernet (DLT_EN10MB).
         var recentCaptures: [String: TimeInterval] = [:]
 
         while isRunning {
@@ -260,7 +260,7 @@ public final class SystemPacketSniffer: @unchecked Sendable {
                     linkType = dlt
                     streamBuffer.removeSubrange(0..<24)
                     hasReadGlobalHeader = true
-                    AppLogger.shared.info("Sniffer", "网卡 [\(interface)] 链路层类型识别: DLT=\(dlt)")
+                    AppLogger.shared.info("Sniffer", "Interface [\(interface)] link-layer type: DLT=\(dlt)")
                 } else {
                     continue
                 }
@@ -318,7 +318,7 @@ public final class SystemPacketSniffer: @unchecked Sendable {
 
         if let host = flowCache.hostname(srcIP: frame.srcIP, srcPort: frame.srcPort, dstIP: frame.dstIP, dstPort: frame.dstPort)
             ?? flowCache.hostname(forIP: frame.dstIP) {
-            // 连接复用或仅有 DNS：目的端口以数据包为准，不假设 443
+            // For reused connections or DNS-only evidence, use the packet's actual port instead of assuming 443.
             emit(host: host, port: frame.dstPort, dstIP: frame.dstIP, interface: interface, reason: "reused-flow", minInterval: 1.0, recentCaptures: &recentCaptures)
         }
         flowCache.pruneIfNeeded()
@@ -337,7 +337,7 @@ public final class SystemPacketSniffer: @unchecked Sendable {
             let cutoff = now - 1.0
             recentCaptures = recentCaptures.filter { $0.value >= cutoff }
         }
-        AppLogger.shared.debug("Sniffer", "捕获到出站 HTTPS 请求 \(reason) -> \(targetKey) (目标IP: \(dstIP), 出口网卡: \(interface))")
+        AppLogger.shared.debug("Sniffer", "Captured outbound HTTPS \(reason) -> \(targetKey) (destination IP: \(dstIP), interface: \(interface))")
         onTargetCaptured?(normalized, port, dstIP, interface)
     }
 
@@ -350,24 +350,24 @@ public final class SystemPacketSniffer: @unchecked Sendable {
         let payload: Data
     }
 
-    /// 解析以太网/Loopback/Raw IP + IPv4/IPv6 + TCP/UDP
+    /// Parse Ethernet, loopback, or raw IP frames followed by IPv4/IPv6 and TCP/UDP.
     private static func parseL3L4(_ pktData: Data, linkType: UInt32) -> ParsedFrame? {
         var ipOffset = 0
 
         switch linkType {
-        case 0: // DLT_NULL (BSD Loopback / utun VPN 虚拟网卡 / lo0)
+        case 0: // DLT_NULL: BSD loopback, utun VPN interfaces, and lo0
             guard pktData.count >= 24 else { return nil }
             ipOffset = 4
-        case 1: // DLT_EN10MB (以太网 / en0, en8 等)
+        case 1: // DLT_EN10MB: Ethernet interfaces such as en0 and en8
             guard pktData.count >= 14 else { return nil }
             ipOffset = 14
             let ethType = UInt16(pktData[12]) << 8 | UInt16(pktData[13])
             if ethType == 0x8100, pktData.count >= 18 {
                 ipOffset = 18
             }
-        case 12, 101: // DLT_RAW (纯原始 IP 包)
+        case 12, 101: // DLT_RAW: raw IP packets
             ipOffset = 0
-        default: // 未知链路层类型，执行自适应嗅探
+        default: // Attempt adaptive parsing for an unknown link-layer type.
             if pktData.count >= 14 {
                 let ethType = UInt16(pktData[12]) << 8 | UInt16(pktData[13])
                 if ethType == 0x0800 || ethType == 0x86DD {

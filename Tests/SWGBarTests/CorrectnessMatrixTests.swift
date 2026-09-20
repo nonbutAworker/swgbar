@@ -1,7 +1,7 @@
 //
-// SWGBar / macOS 菜单栏 TLS 检查检测器
-// 核心正确性测试矩阵 (CorrectnessMatrixTests.swift)
-// 遵循技术方案 v1.1 第 35 章：全面覆盖 T01 - T16 测试用例
+// SWGBar / macOS menu bar TLS inspection detector
+// Core correctness matrix (CorrectnessMatrixTests.swift)
+// Regression coverage for cases T01 through T16.
 //
 
 import XCTest
@@ -28,8 +28,8 @@ final class CorrectnessMatrixTests: XCTestCase {
         repo = nil
     }
     
-    // MARK: - T01: 公共中间 CA 高复用不报警
-    // 1000 域名共享同一合法中间 CA，不因重复升级为 MITM
+    // MARK: - T01: Reusing a public intermediate CA must not imply inspection
+    // A legitimate intermediate shared by 1,000 domains must remain public.
     func testT01_PublicIntermediateHighReuse_NotMITM() {
         let publicInterSPKI = "A19C3E77889900112233445566778899AABBCCDDEEFF00112233445566778899"
         
@@ -55,7 +55,7 @@ final class CorrectnessMatrixTests: XCTestCase {
         XCTAssertNotEqual(result.verdict, .suspectedInspection)
     }
     
-    // MARK: - T02: 已登记检查 CA 确认为 C，并记录规则来源
+    // MARK: - T02: A registered inspection CA produces a confirmed verdict with rule provenance
     func testT02_RegisteredInspectionCA_Confirmed() {
         let inspectionSPKI = "D1F5E3A9C8B47C2E3311AABBCCDDEEFF00112233445566778899AABBCCDDEEFF"
         let rule = Rule(
@@ -66,7 +66,7 @@ final class CorrectnessMatrixTests: XCTestCase {
             matchValue: inspectionSPKI,
             domainScope: nil,
             origin: "user",
-            explanation: "公司合规代理",
+            explanation: "Registered inspection proxy",
             expiresAtMs: nil,
             revision: 1
         )
@@ -90,10 +90,10 @@ final class CorrectnessMatrixTests: XCTestCase {
         
         XCTAssertEqual(result.verdict, .confirmedInspection)
         XCTAssertTrue(result.hasUserAssertion)
-        XCTAssertTrue(result.reason.contains("公司合规代理"))
+        XCTAssertTrue(result.reason.contains("Registered inspection proxy"))
     }
     
-    // MARK: - T03: 未登记私有 CA -> U (private_trust)，不自动确认
+    // MARK: - T03: An unregistered private CA remains unknown
     func testT03_UnregisteredPrivateCA_Unknown() {
         let result = classifier.classify(
             hostname: "internal.server.local",
@@ -108,7 +108,7 @@ final class CorrectnessMatrixTests: XCTestCase {
             presentedSpkiIds: ["leaf_spki", "priv_root_spki"],
             caSubjects: ["CN=internal.server.local", "CN=My Private Root"],
             isExtraTrustAnchor: true,
-            caDomainRecurrenceCount: 1, // 仅 1 个域名
+            caDomainRecurrenceCount: 1, // Only one domain
             rules: []
         )
         
@@ -116,7 +116,7 @@ final class CorrectnessMatrixTests: XCTestCase {
         XCTAssertTrue(result.reason.contains("EXTRA_PRIVATE_TRUST_NO_RECURRENCE"))
     }
     
-    // MARK: - T04: 私有 CA 在多个公共目标复现 -> S (疑似检查)
+    // MARK: - T04: Private CA recurrence across public targets becomes suspected
     func testT04_PrivateCARecurrenceAcrossPublicDomains_Suspected() {
         let result = classifier.classify(
             hostname: "sso.orbit.example",
@@ -131,14 +131,14 @@ final class CorrectnessMatrixTests: XCTestCase {
             presentedSpkiIds: ["leaf_spki", "priv_anchor_spki"],
             caSubjects: ["CN=sso.orbit.example", "CN=Private Anchor A"],
             isExtraTrustAnchor: true,
-            caDomainRecurrenceCount: 3, // 达到 >= 3 跨目标阈值
+            caDomainRecurrenceCount: 3, // Reach the cross-target recurrence threshold.
             rules: []
         )
         
         XCTAssertEqual(result.verdict, .suspectedInspection)
     }
     
-    // MARK: - T05: 私有根未跨域复现 (单点私有服务) -> 未知/观察 (U)
+    // MARK: - T05: A private root without cross-domain recurrence remains unknown
     func testT05_IntranetPrivateService_NoRecurrence() {
         let caSPKI = "045C739AABBCCDDEEFF00112233445566778899AABBCCDDEEFF0011223344556"
         
@@ -163,7 +163,7 @@ final class CorrectnessMatrixTests: XCTestCase {
         XCTAssertEqual(result.reason, "EXTRA_PRIVATE_TRUST_NO_RECURRENCE")
     }
     
-    // MARK: - T06: 公共换证 / 跨签名 -> 正常分类
+    // MARK: - T06: Public certificate rotation and cross-signing classify normally
     func testT06_PublicCertRotation_Valid() {
         let result = classifier.classify(
             hostname: "docs.aurora.example",
@@ -185,7 +185,7 @@ final class CorrectnessMatrixTests: XCTestCase {
         XCTAssertEqual(result.verdict, .publicPath)
     }
     
-    // MARK: - T07: 过期 / 错域名 / 伪签名 -> U，不能确认已完成检查
+    // MARK: - T07: Expiry, hostname mismatch, or invalid signatures remain unknown
     func testT07_ExpiredOrWrongHostname_Unknown() {
         let result = classifier.classify(
             hostname: "wrong.domain.example",
@@ -193,7 +193,7 @@ final class CorrectnessMatrixTests: XCTestCase {
             isIpv4: true,
             isHttps: true,
             isOwnTraffic: false,
-            handshakeCompleted: false, // 握手失败或主机名不匹配
+            handshakeCompleted: false, // Handshake failure or hostname mismatch
             nativeAccepted: false,
             publicPkixPassed: false,
             presentedCertIds: [],
@@ -207,7 +207,7 @@ final class CorrectnessMatrixTests: XCTestCase {
         XCTAssertEqual(result.verdict, .unknown)
     }
     
-    // MARK: - T08: 无关 CA 注入链数组 -> 不命中 C
+    // MARK: - T08: An unrelated CA inserted into the chain must not confirm inspection
     func testT08_UnrelatedCAInChainArray_NotConfirmed() {
         let inspectionSPKI = "INSPECTION_SPKI_HASH"
         let rule = Rule(
@@ -218,12 +218,12 @@ final class CorrectnessMatrixTests: XCTestCase {
             matchValue: inspectionSPKI,
             domainScope: nil,
             origin: "user",
-            explanation: "仅检查身份",
+            explanation: "Inspection identity only",
             expiresAtMs: nil,
             revision: 1
         )
         
-        // 目标使用的是合法的公共证书，但攻击者在证书数组末尾混入了一张 inspection CA
+        // The target uses a public certificate, but the presented array also contains an unrelated inspection CA.
         let result = classifier.classify(
             hostname: "legit.example.com",
             port: 443,
@@ -232,9 +232,9 @@ final class CorrectnessMatrixTests: XCTestCase {
             isOwnTraffic: false,
             handshakeCompleted: true,
             nativeAccepted: true,
-            publicPkixPassed: true, // 公共路径校验通过！
+            publicPkixPassed: true, // Public validation passed.
             presentedCertIds: ["legit_leaf", "legit_inter"],
-            presentedSpkiIds: ["legit_spki", "legit_inter_spki"], // 不包含 inspectionSPKI
+            presentedSpkiIds: ["legit_spki", "legit_inter_spki"], // Does not contain inspectionSPKI
             caSubjects: ["CN=legit.example.com", "CN=DigiCert Global Root CA"],
             isExtraTrustAnchor: false,
             caDomainRecurrenceCount: 1,
@@ -245,15 +245,15 @@ final class CorrectnessMatrixTests: XCTestCase {
         XCTAssertNotEqual(result.verdict, .confirmedInspection)
     }
     
-    // MARK: - T09: App 直连与 Chrome 被检查路线不同 -> 两来源分别输出，不互相回填
+    // MARK: - T09: Keep independent probes separate from observed browser requests
     func testT09_AppDirectVsChromeInspected_Isolated() throws {
         let epochId = "epoch-01"
-        try repo.createEpoch(id: epochId, name: "网络阶段 01", routeDigest: "digest-01", startMs: 1000)
+        try repo.createEpoch(id: epochId, name: "Network epoch 01", routeDigest: "digest-01", startMs: 1000)
         
         let targetId = try repo.getOrCreateTarget(hostname: "split.example.com", port: 443)
         let now = Int64(Date().timeIntervalSince1970 * 1000)
         
-        // 1. App 独立探测：直连公共路径
+        // 1. The application's independent probe uses a direct public path.
         let probeObs = StorageRepository.ObservationRecord(
             id: "obs_probe_1",
             sourceInstanceId: "agent_probe",
@@ -266,7 +266,7 @@ final class CorrectnessMatrixTests: XCTestCase {
         try repo.saveObservation(probeObs)
         try repo.saveClassification(obsId: probeObs.id, revision: 1, verdict: .publicPath, reason: "PUBLIC")
         
-        // 2. Chrome 实际请求：被 SWG 检查
+        // 2. The observed browser request uses an inspection path.
         let browserObs = StorageRepository.ObservationRecord(
             id: "obs_browser_1",
             sourceInstanceId: "browser_session_1",
@@ -279,7 +279,7 @@ final class CorrectnessMatrixTests: XCTestCase {
         try repo.saveObservation(browserObs)
         try repo.saveClassification(obsId: browserObs.id, revision: 1, verdict: .confirmedInspection, reason: "INSPECTED")
         
-        // 验证通道隔离：分别查询
+        // Query each channel separately to verify isolation.
         let probeCounts = try repo.queryMetricCounts(source: .nativeProbe, epochId: epochId, windowStartMs: now - 10000, windowEndMs: now + 1000)
         let browserCounts = try repo.queryMetricCounts(source: .browserRequest, epochId: epochId, windowStartMs: now - 10000, windowEndMs: now + 1000)
         
@@ -290,10 +290,10 @@ final class CorrectnessMatrixTests: XCTestCase {
         XCTAssertEqual(browserCounts.publicPath, 0)
     }
     
-    // MARK: - T10: 同域名混合策略 -> 保留两条证据
+    // MARK: - T10: Preserve evidence from mixed policies on the same domain
     func testT10_MixedStrategySameDomain_MultipleObservations() throws {
         let epochId = "epoch-01"
-        try repo.createEpoch(id: epochId, name: "网络阶段 01", routeDigest: "digest-01", startMs: 1000)
+        try repo.createEpoch(id: epochId, name: "Network epoch 01", routeDigest: "digest-01", startMs: 1000)
         let targetId = try repo.getOrCreateTarget(hostname: "mix.example.com", port: 443)
         let now = Int64(Date().timeIntervalSince1970 * 1000)
         
@@ -321,13 +321,13 @@ final class CorrectnessMatrixTests: XCTestCase {
         try repo.saveObservation(obs2)
         try repo.saveClassification(obsId: obs2.id, revision: 1, verdict: .confirmedInspection, reason: "CONFIRMED")
         
-        // 最新观测 (obs2) 生效
+        // The latest observation, obs2, takes effect.
         let counts = try repo.queryMetricCounts(source: .nativeProbe, epochId: epochId, windowStartMs: now - 5000, windowEndMs: now + 1000)
         XCTAssertEqual(counts.confirmed, 1)
-        XCTAssertEqual(counts.unknown, 0) // 旧的 timeout 被同一窗口最新完成观测更新覆盖
+        XCTAssertEqual(counts.unknown, 0) // The latest completed observation supersedes an earlier timeout within the same window.
     }
     
-    // MARK: - T11: 空样本 / 全未知 -> null 而非 0，无除零错误
+    // MARK: - T11: Empty or entirely unknown samples produce null, without division by zero
     func testT11_EmptyOrZeroDenominator_NullNotZero() {
         // N = 0
         let zeroCounts = MetricCounts(confirmed: 0, suspected: 0, publicPath: 0, expectedPrivate: 0, unknown: 0, excluded: 0)
@@ -338,7 +338,7 @@ final class CorrectnessMatrixTests: XCTestCase {
         XCTAssertNil(zeroVal.ratio)
         XCTAssertEqual(zeroVal.percentageString, "—")
         
-        // N > 0 但 K = 0
+        // N is positive but K is zero.
         let allUnknown = MetricCounts(confirmed: 0, suspected: 0, publicPath: 0, expectedPrivate: 0, unknown: 10, excluded: 2)
         XCTAssertEqual(allUnknown.nApplicableTotal, 10)
         XCTAssertEqual(allUnknown.kClassifiedTotal, 0)
@@ -348,7 +348,7 @@ final class CorrectnessMatrixTests: XCTestCase {
         XCTAssertEqual(classifiedRate.percentageString, "—")
     }
     
-    // MARK: - T12: 断流 / 重复 / 乱序 -> 幂等，不虚构总体分母
+    // MARK: - T12: Handle gaps, duplicates, and reordering without inventing a denominator
     func testT12_DeduplicationAndPartialDrop_Idempotent() {
         let queue = BoundedFlowQueue(capacity: 3)
         let f1 = FlowMetadata(remoteHostname: "a.com", remoteAddress: "1.1.1.1", remotePort: 443, sourceBundleId: nil, sourceDisplayName: nil)
@@ -359,13 +359,13 @@ final class CorrectnessMatrixTests: XCTestCase {
         XCTAssertTrue(queue.offer(f1))
         XCTAssertTrue(queue.offer(f2))
         XCTAssertTrue(queue.offer(f3))
-        XCTAssertFalse(queue.offer(f4)) // 满则丢弃
+        XCTAssertFalse(queue.offer(f4)) // Drop the event when the queue is full.
         
         XCTAssertEqual(queue.droppedCount, 1)
         XCTAssertEqual(queue.count, 3)
     }
     
-    // MARK: - T13: 明文 HTTP / IPv6 / QUIC -> 范围外 X，不进入适用分母
+    // MARK: - T13: Plain HTTP, IPv6, and QUIC are excluded from the eligible denominator
     func testT13_PlainHTTP_IPv6_QUIC_Excluded() {
         // IPv6
         let resIpv6 = classifier.classify(
@@ -386,7 +386,7 @@ final class CorrectnessMatrixTests: XCTestCase {
         )
         XCTAssertEqual(resIpv6.verdict, .excluded)
         
-        // 明文 HTTP
+        // Plain HTTP
         let resHttp = classifier.classify(
             hostname: "http.example.com",
             port: 80,
@@ -406,14 +406,14 @@ final class CorrectnessMatrixTests: XCTestCase {
         XCTAssertEqual(resHttp.verdict, .excluded)
     }
     
-    // MARK: - T14: 缓存 / 预连接 -> 无真实发送不作为网络请求
+    // MARK: - T14: Cache hits and preconnections are not network request attempts
     func testT14_CacheHit_NotCountedAsAttempt() {
         let isCacheHit = true
         let isValidRequest = !isCacheHit
-        XCTAssertFalse(isValidRequest, "缓存命中不应作为实际发往网络的请求尝试")
+        XCTAssertFalse(isValidRequest, "Cache hits must not count as network request attempts")
     }
     
-    // MARK: - T15: 明确检查规则命中 -> 确认为 confirmedInspection
+    // MARK: - T15: An explicit inspection rule confirms inspection
     func testT15_InspectionRuleMatch() {
         let spki = "INSPECTION_RULE_SPKI"
         let inspRule = Rule(
@@ -424,7 +424,7 @@ final class CorrectnessMatrixTests: XCTestCase {
             matchValue: spki,
             domainScope: nil,
             origin: "user",
-            explanation: "设置为检查",
+            explanation: "Mark as inspection",
             expiresAtMs: nil,
             revision: 1
         )
@@ -450,12 +450,12 @@ final class CorrectnessMatrixTests: XCTestCase {
         XCTAssertTrue(result.reason.contains("RULE_MATCH"))
     }
     
-    // MARK: - T16: 清除后迟到事件 -> 老 generation 拒绝写回
+    // MARK: - T16: Reject late events from an old generation after clearing data
     func testT16_LateEventAfterDataClear_Rejected() {
         let activeGeneration = 2
         let lateEventGeneration = 1
         
         let shouldAccept = (lateEventGeneration == activeGeneration)
-        XCTAssertFalse(shouldAccept, "清除数据后提升 activeGeneration，来自旧 generation 的迟到事件必须拒绝处理")
+        XCTAssertFalse(shouldAccept, "After clearing data, late events from an older generation must be rejected")
     }
 }

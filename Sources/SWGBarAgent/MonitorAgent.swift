@@ -1,7 +1,7 @@
 //
-// SWGBar / macOS 菜单栏 TLS 检查检测器
-// 本地协调服务 (MonitorAgent.swift)
-// 遵循技术方案 v1.1 第 06, 26-28 章：单写者 actor、调度、不可变快照生成、RPC 路由器
+// SWGBar / macOS menu bar TLS inspection detector
+// Local coordination service (MonitorAgent.swift)
+// Actor-based coordination for scheduling, immutable snapshots, and RPC routing.
 //
 
 import Foundation
@@ -58,9 +58,9 @@ public actor MonitorAgent {
         }
     }
 
-    // MARK: - 启动时加载本机真实 Keychain CA 与活跃网络连接
+    // MARK: - Load local keychain CAs and active connections
     public func populateLiveSystemData(enableBatchFeeder: Bool = true) async {
-        // 1. 初始化当前网络阶段
+        // 1. Initialize the current network epoch.
         try? repository.createEpoch(
             id: epochManager.currentEpochId,
             name: epochManager.currentEpochName,
@@ -68,7 +68,7 @@ public actor MonitorAgent {
             startMs: Int64(Date().timeIntervalSince1970 * 1000)
         )
 
-        // 2. 加载本机 Keychain 中真实安装的额外信任根证书
+        // 2. Load additional trusted roots installed in the local keychain.
         let realCAs = NativeTrustEvaluator.shared.extractAllInstalledExtraTrustCAs()
         for ca in realCAs {
             _ = try? repository.upsertCACluster(
@@ -84,32 +84,32 @@ public actor MonitorAgent {
 
         try? repository.logEvent(
             kind: "system",
-            title: "已加载本机钥匙串额外信任证书",
-            detail: "识别到 \(realCAs.count) 个用户/管理员额外信任根证书",
+            title: "Additional trusted certificates loaded from the local keychain",
+            detail: "Found \(realCAs.count) additional trusted roots in the user and administrator domains",
             category: "system"
         )
 
-        // 3. 执行历史数据算法自检，自动确认具备多目标拦截特征的私有 CA
+        // 3. Reevaluate historical private CAs for automatic inspection confirmation.
         await autoConfirmMultiTargetCAs()
 
-        // 4. 仅首次启动扫描浏览器历史，建立基线目标与请求次数
+        // 4. Import browser history once to establish baseline targets and request counts.
         await importBrowserHistoryIfFirstLaunch()
 
-        // 5. 启动类似 Golang channel 的并发工作池（4 个并发 worker 持续监听）
+        // 5. Start four concurrent workers consuming the probe channel.
         startChannelWorkers(workerCount: 4)
 
-        // 5. 启动系统网络层出站 HTTPS 实时嗅探器（自动捕获终端、客户端等所有进程流量）
+        // 5. Start outbound HTTPS metadata capture for local processes.
         startSystemNetworkSniffer()
 
-        // 6. 仅对首次导入的历史基线按每批 50 个探测一次；探完即停，新域名只靠嗅探
+        // 6. Probe the initial historical baseline in batches of 50; discover subsequent targets from capture.
         if enableBatchFeeder && !repository.hasCompletedHistoricalBaselineProbe() {
             startPendingProbeFeeder()
         }
     }
 
-    // MARK: - 网络层实时流量捕获与即时 TLS 握手响应
+    // MARK: - Live network metadata and TLS probes
 
-    /// 启动系统网络层出站 HTTPS 嗅探器（任意 TCP 端口的 TLS SNI / 复用，DNS 反查）
+    /// Capture TLS SNI and connection reuse on any TCP port, with DNS address mapping.
     public func startSystemNetworkSniffer() {
         let sniffer = SystemPacketSniffer.shared
         sniffer.onTargetCaptured = { [weak self] host, port, remoteIp, egressInterface in
@@ -120,7 +120,7 @@ public actor MonitorAgent {
         sniffer.start()
     }
 
-    /// 处理网络层实时捕获的域名与端口
+    /// Handle a hostname and port discovered by live capture.
     public func handleLiveCapturedDomain(host: String, port: Int = 443, remoteIp: String, egressInterface: String = "") async {
         guard collectorState == .running else { return }
         guard let normalized = DomainNormalizer.normalize(hostname: host) else { return }
@@ -128,27 +128,27 @@ public actor MonitorAgent {
 
         let effectivePort = port > 0 ? port : 443
         do {
-            // 1. 原子递增请求计数（单条 SQL，避免 SELECT + UPDATE 两次往返）
+            // 1. Increment the request count atomically in one SQL statement.
             let targetId = try repository.getOrCreateTarget(hostname: normalized, port: effectivePort)
             try repository.atomicIncrementRequestCount(targetId: targetId)
 
-            // 2. 实时流式通知 UI 更新计数（节流至最多每 0.8 秒触发一次，杜绝通知风暴）
+            // 2. Throttle UI count updates to one notification every 0.8 seconds.
             postDataChangedNotificationThrottled(minInterval: 0.8)
 
-            // 3. 记录该目标最近一次实际出站所用网卡，供探测落库时兜底使用
+            // 3. Remember the latest observed outbound interface as a fallback for probe records.
             if !egressInterface.isEmpty {
                 rememberEgressInterface(host: normalized, port: effectivePort, interface: egressInterface)
             }
 
-            // 4. 类似 Golang channel 的 ch <- target，瞬间放入通道，工作协程立刻消费并向该端口毫秒级发起探测
+            // 4. Enqueue the target so an available worker can start a TLS probe.
             await DomainProbeChannel.shared.send(host: normalized, port: effectivePort)
         } catch {
-            AppLogger.shared.warn("Capture", "实时捕获目标落库失败 host=\(normalized):\(effectivePort): \(error)")
+            AppLogger.shared.warn("Capture", "Could not persist captured target host=\(normalized):\(effectivePort): \(error)")
             return
         }
     }
 
-    // MARK: - 出口网卡记录（来自网络层实时捕获）
+    // MARK: - Outbound interfaces observed by network capture
     private var observedEgressInterfaces: [String: String] = [:]
 
     private func rememberEgressInterface(host: String, port: Int, interface: String) {
@@ -162,7 +162,7 @@ public actor MonitorAgent {
         observedEgressInterfaces["\(host):\(port)"]
     }
 
-    // MARK: - 实时变动通知节流器
+    // MARK: - Throttle data-change notifications
     private var lastDataNotificationTime: TimeInterval = 0
 
     public func postDataChangedNotificationThrottled(minInterval: TimeInterval = 0.8) {
@@ -177,32 +177,32 @@ public actor MonitorAgent {
         }
     }
 
-    // MARK: - 从浏览器历史发现域名并更新数据库
+    // MARK: - Discover targets from browser history
 
-    /// 仅在本机数据库首次启动时导入浏览器历史；后续启动跳过
+    /// Import browser history once for a new local database; skip subsequent launches.
     public func importBrowserHistoryIfFirstLaunch() async {
         if repository.hasCompletedBrowserHistoryImport() {
-            AppLogger.shared.info("BrowserHistory", "跳过浏览器历史导入：仅首次启动执行一次")
+            AppLogger.shared.info("BrowserHistory", "Skipping browser history import: already completed on first launch")
             return
         }
-        // 已有目标数据说明不是全新安装（例如升级前已经导入过），不再重复扫描历史
+        // Existing targets indicate an earlier installation, so history should not be imported again.
         if repository.hasAnyTargets() {
             try? repository.markBrowserHistoryImportCompleted()
-            AppLogger.shared.info("BrowserHistory", "跳过浏览器历史导入：库中已有目标，视为非首次启动")
+            AppLogger.shared.info("BrowserHistory", "Skipping browser history import: existing targets indicate a previous launch")
             return
         }
         await discoverDomainsFromBrowserHistory()
         try? repository.markBrowserHistoryImportCompleted()
     }
 
-    /// 扫描浏览器历史记录，导入发现的 HTTPS 域名与真实请求次数
+    /// Import HTTPS endpoints and their recorded request counts from browser history.
     public func discoverDomainsFromBrowserHistory() async {
         let scanner = BrowserHistoryScanner.shared
         let discovered = scanner.scanAllBrowserHistories()
 
         guard !discovered.isEmpty else { return }
 
-        // 将发现的域名写入 targets 表，更新请求计数
+        // Write discovered targets and update request counts.
         var importedCount = 0
         for domain in discovered {
             do {
@@ -214,20 +214,20 @@ public actor MonitorAgent {
             }
         }
 
-        AppLogger.shared.info("BrowserHistory", "已从本机浏览器历史扫描导入 \(importedCount) 个出站访问基线目标")
+        AppLogger.shared.info("BrowserHistory", "Imported \(importedCount) baseline targets from local browser history")
         try? repository.logEvent(
             kind: "browser_discovery",
-            title: "已加载浏览器出站访问基线",
-            detail: "从本机 Chromium 浏览器导入 \(importedCount) 个目标",
+            title: "Browser history baseline loaded",
+            detail: "Imported \(importedCount) targets from local Chromium browsers",
             category: "system"
         )
     }
 
-    // MARK: - 类似 Golang Channel 的并发工作协程池
+    // MARK: - Concurrent channel workers
 
     private var channelWorkerTasks: [Task<Void, Never>] = []
 
-    /// 启动通道消费工作池 (类似 Go 的 4 个并发 goroutine 消费 channel: target := <-ch)
+    /// Start four concurrent workers consuming the target channel.
     public func startChannelWorkers(workerCount: Int = 4) {
         stopChannelWorkers()
 
@@ -247,7 +247,7 @@ public actor MonitorAgent {
                     }
                     let state = await self.getCollectorState()
                     if state == .running {
-                        // 只要网络层捕获到域名与目标端口，立刻向对应端口发起纯 TLS 握手探测！
+                        // Probe the captured hostname and destination port with a TLS handshake.
                         _ = await self.startManualProbe(hostname: target.host, port: target.port)
                         await self.postDataChangedNotificationThrottled(minInterval: 0.8)
                     }
@@ -258,7 +258,7 @@ public actor MonitorAgent {
         }
     }
 
-    /// 停止工作池
+    /// Stop the worker pool.
     public func stopChannelWorkers() {
         for t in channelWorkerTasks {
             t.cancel()
@@ -269,7 +269,7 @@ public actor MonitorAgent {
         }
     }
 
-    // MARK: - 首次历史基线分批探测（每批 50，探完即停，不再轮询新域名）
+    // MARK: - Probe the initial historical baseline in batches of 50
 
     public func startPendingProbeFeeder() {
         if let existing = pendingProbeFeederTask, !existing.isCancelled {
@@ -288,7 +288,7 @@ public actor MonitorAgent {
                 let batch = await self.loadNeverProbedBatch()
                 if batch.isEmpty {
                     try? self.repository.markHistoricalBaselineProbeCompleted()
-                    AppLogger.shared.info("ProbeFeeder", "历史基线目标已全部探测完毕，分批补探结束；后续新域名仅由网络嗅探触发")
+                    AppLogger.shared.info("ProbeFeeder", "Historical baseline probing is complete; new targets will be discovered from network metadata")
                     break
                 }
 
@@ -305,7 +305,7 @@ public actor MonitorAgent {
                 let remaining = await self.countNeverProbedTargets()
                 AppLogger.shared.info(
                     "ProbeFeeder",
-                    "第 \(batchIndex) 批已入队 \(sentIds.count) 个历史基线目标（域名+端口去重，批量上限 \(Self.pendingProbeBatchSize)），当前仍有 \(remaining) 个尚未产生观测"
+                    "Batch \(batchIndex): queued \(sentIds.count) unique host/port targets (limit \(Self.pendingProbeBatchSize)); \(remaining) targets still have no observations"
                 )
                 await self.waitUntilBatchProbed(targetIds: sentIds)
             }
@@ -330,7 +330,7 @@ public actor MonitorAgent {
         (try? repository.countTargetsNeverProbed()) ?? 0
     }
 
-    /// 只等本批目标落库，避免被嗅探器持续入队挡住后续批次
+    /// Wait only for this batch, so continuous live capture cannot block the next batch.
     private func waitUntilBatchProbed(targetIds: [String], timeoutSeconds: TimeInterval = 180) async {
         guard !targetIds.isEmpty else { return }
         let deadline = Date().addingTimeInterval(timeoutSeconds)
@@ -341,7 +341,7 @@ public actor MonitorAgent {
         }
     }
 
-    // MARK: - 清空所有历史探测数据
+    // MARK: - Clear historical probe data
     public func clearAllHistoricalData() {
         stopChannelWorkers()
         stopPendingProbeFeeder()
@@ -352,7 +352,7 @@ public actor MonitorAgent {
         startChannelWorkers(workerCount: 4)
     }
 
-    // MARK: - 状态与配置管理
+    // MARK: - State and configuration
 
     public func getCollectorState() -> CollectorState {
         return collectorState
@@ -367,8 +367,8 @@ public actor MonitorAgent {
         }
         try? repository.logEvent(
             kind: "collector_state",
-            title: state == .paused ? "监测已暂停" : "监测已恢复",
-            detail: "状态切换为 \(state.rawValue)",
+            title: state == .paused ? "Monitoring paused" : "Monitoring resumed",
+            detail: "State changed to \(state.rawValue)",
             category: "system"
         )
         DispatchQueue.main.async {
@@ -376,7 +376,7 @@ public actor MonitorAgent {
         }
     }
 
-    // MARK: - 快照与视图查询
+    // MARK: - Snapshots and view queries
 
     public func getOverviewSnapshot(metricKind: String? = nil, windowSeconds: Int? = nil) -> OverviewSnapshot {
         let kind = metricKind ?? "probe_domain"
@@ -432,7 +432,7 @@ public actor MonitorAgent {
         try? repository.reclassifyObservationsForRule(rule)
         try repository.logEvent(
             kind: "rule_change",
-            title: "规则更新",
+            title: "Rule updated",
             detail: "\(rule.name) (\(rule.kind))",
             category: "rule"
         )
@@ -442,22 +442,22 @@ public actor MonitorAgent {
         try repository.deleteRule(ruleId: ruleId)
         try repository.logEvent(
             kind: "rule_delete",
-            title: "规则已删除",
+            title: "Rule deleted",
             detail: "ID: \(ruleId)",
             category: "rule"
         )
     }
 
-    // MARK: - 主动探测触发与执行
+    // MARK: - Schedule and execute active probes
 
     public func startManualProbe(hostname: String, port: Int = 443) async -> (success: Bool, message: String) {
         guard let normalized = DomainNormalizer.normalize(hostname: hostname) else {
-            return (false, "域名格式非法或包含无效字符")
+            return (false, "The hostname is invalid or contains unsupported characters")
         }
 
         let isPrivate = DomainNormalizer.isPrivateOrReservedIP(normalized)
         if isPrivate {
-            return (false, "目标为内网或私有保留地址，默认禁止探测；请先添加内网探测授权规则")
+            return (false, "Probing private or reserved addresses is disabled by default. Add an explicit private-network probe rule first.")
         }
 
         var canSchedule = await scheduler.canSchedule(target: "\(normalized):\(port)", isUserInitiated: true)
@@ -469,7 +469,7 @@ public actor MonitorAgent {
             }
         }
         guard canSchedule.allowed else {
-            return (false, canSchedule.reason ?? "超出调度限制")
+            return (false, canSchedule.reason ?? "Probe scheduling limit exceeded")
         }
 
         _ = await scheduler.startProbe(target: "\(normalized):\(port)", isUserInitiated: true)
@@ -477,7 +477,7 @@ public actor MonitorAgent {
         let probeResult = await bridge.executeProbe(host: normalized, port: port)
         await scheduler.finishProbe(target: "\(normalized):\(port)")
 
-        // 存储并分类
+        // Persist and classify the result.
         do {
             let currentEpochId = epochManager.currentEpochId
             try? repository.createEpoch(
@@ -489,10 +489,10 @@ public actor MonitorAgent {
 
             let targetId = try repository.getOrCreateTarget(hostname: normalized, port: port)
 
-            // 出口网卡：仅取网络层抓包时已捕获到的真实出口，未捕获则留空，不额外发起任何查询
+            // Use the outbound interface observed by capture; leave it empty if unavailable instead of querying again.
             let resolvedEgressInterface: String? = capturedEgressInterface(host: normalized, port: port)
 
-            // 将所有探测结果写入包裹在单个事务中，减少 WAL 同步次数（~10+ → 1）
+            // Persist each probe in one transaction to reduce WAL synchronization.
             let verdict: String = try repository.transaction {
                 let obsRecord = StorageRepository.ObservationRecord(
                     sourceInstanceId: "manual_probe",
@@ -510,13 +510,13 @@ public actor MonitorAgent {
                 )
                 try repository.saveObservation(obsRecord)
 
-                // 1. 先保存对端呈现的证书、关联与 CA 聚类
+                // 1. Save the presented certificates, associations, and CA clusters.
                 let caName = probeResult.caSubjects.count > 1 ? probeResult.caSubjects[1] : (probeResult.caSubjects.first ?? "")
                 let extraAnchorSubject = probeResult.extraAnchorSubject ?? ""
                 let effectiveCAName = !extraAnchorSubject.isEmpty ? extraAnchorSubject : caName
                 let primarySPKI = probeResult.presentedSpkiIds.count > 1 ? probeResult.presentedSpkiIds[1] : (probeResult.presentedSpkiIds.first ?? "")
 
-                // 证书链落库失败计数：逐条打印会随探测频次放大，按本次探测聚合为一条
+                // Aggregate certificate persistence failures into one log entry per probe.
                 var chainPersistFailures = 0
                 for (idx, certId) in probeResult.presentedCertIds.enumerated() {
                     let spki = (idx < probeResult.presentedSpkiIds.count) ? probeResult.presentedSpkiIds[idx] : certId
@@ -573,26 +573,26 @@ public actor MonitorAgent {
                 }
 
                 if chainPersistFailures > 0 {
-                    AppLogger.shared.error("Storage", "证书链落库失败 \(chainPersistFailures) 处 host=\(normalized):\(port)，该域名可能无法关联到 CA")
+                    AppLogger.shared.error("Storage", "Failed to persist \(chainPersistFailures) certificate chain entries for \(normalized):\(port); the target may not link to its CA")
                 }
 
-                // 2. 特征模式检测与自动确认 (Algorithmic SWG Auto-Confirmation)
-                // 条件 1: 无法通过公网证书校验，且通过添加到本机的“受信任根证书”通过校验
+                // 2. Detect inspection patterns and apply automatic confirmation.
+                // Condition 1: public validation fails but a locally added root is trusted.
                 if probeResult.isExtraAnchor && !probeResult.publicPkixPassed && probeResult.nativeAccepted {
                     let domainStats = (try? repository.countDistinctDomainsForCA(spki: primarySPKI, caName: effectiveCAName)) ?? (total: 1, apex: 1)
 
-                    // 条件 2: 多个不同的域名（超过10个）都是用该相同的私有根证书
+                    // Condition 2: the same private root appears across more than 10 distinct domains.
                     if domainStats.total > 10 {
                         let ruleKey = !primarySPKI.isEmpty ? primarySPKI : effectiveCAName
                         let autoRule = Rule(
                             ruleId: "auto_rule_" + String(ruleKey.prefix(16)).replacingOccurrences(of: ":", with: "").lowercased(),
-                            name: effectiveCAName.isEmpty ? "企业拦截代理 CA" : effectiveCAName,
+                            name: effectiveCAName.isEmpty ? "Enterprise inspection CA" : effectiveCAName,
                             kind: "inspection_ca",
                             matchType: !primarySPKI.isEmpty ? "ca_spki" : "ca_name",
                             matchValue: ruleKey,
                             domainScope: nil,
                             origin: "system_auto",
-                            explanation: "满足SWG中间人特征: 无法通过公网校验、本机受信任根校验通过，且拦截超过10个不同域名 (\(domainStats.total) 个域名)",
+                            explanation: "Inspection criteria met: public validation failed, a locally trusted root was accepted, and more than 10 distinct domains were observed (\(domainStats.total) domains)",
                             expiresAtMs: nil,
                             revision: 1
                         )
@@ -600,13 +600,13 @@ public actor MonitorAgent {
                             try repository.upsertRule(autoRule)
                             try repository.upgradeAllToConfirmedForCA(caName: effectiveCAName, spkiSha256: primarySPKI)
                         } catch {
-                            AppLogger.shared.error("Classification", "自动确认规则落库失败，CA \"\(effectiveCAName)\" 判定未生效: \(error)")
+                            AppLogger.shared.error("Classification", "Could not persist the automatic confirmation rule for CA \"\(effectiveCAName)\"; classification was not applied: \(error)")
                         }
-                        AppLogger.shared.info("Classification", "⚡️ [自动确认] 私有 CA \"\(effectiveCAName)\" 命中了 SWG 中间人特征 (公网不通过 + 本机受信任根 + 超过10个不同域名: \(domainStats.total) 个)，已自动确认为【已确认】(Confirmed)")
+                        AppLogger.shared.info("Classification", "Automatically confirmed private CA \"\(effectiveCAName)\": public validation failed, a local root was trusted, and \(domainStats.total) distinct domains were observed")
                     }
                 }
 
-                // 3. 执行最终分类
+                // 3. Apply the final classification.
                 let recurrenceCount = max(1, (try? repository.countDomainsForCA(caName: effectiveCAName)) ?? 1)
                 let rules = (try? repository.listRules()) ?? []
 
@@ -635,43 +635,43 @@ public actor MonitorAgent {
                     reason: classification.reason
                 )
 
-                // 4. 当复现次数跨阈值 (2..10) 时，将历史未满足阈值的 unknown 自动升级为 suspected
+                // 4. Upgrade historical unknown verdicts to suspected when cross-domain recurrence reaches 2 through 10 targets.
                 if recurrenceCount >= 2 && classification.verdict != .confirmedInspection {
                     try? repository.upgradeUnknownToSuspectedForCA(caName: effectiveCAName)
                 }
 
-                AppLogger.shared.info("Classification", "🎯 判定结果 host=\(normalized):\(port) -> 【\(classification.verdict.shortLabel)】 | 原因: \(classification.reason) | CA: \"\(effectiveCAName)\" (关联域名数: \(recurrenceCount))")
+                AppLogger.shared.info("Classification", "Classification host=\(normalized):\(port) -> \(classification.verdict.shortLabel) | reason: \(classification.reason) | CA: \"\(effectiveCAName)\" (associated domains: \(recurrenceCount))")
                 return classification.verdict.shortLabel
             }
 
-            return (true, "探测完成：判定为【\(verdict)】")
+            return (true, "Probe complete: \(verdict)")
         } catch {
-            AppLogger.shared.error("Probe", "探测结果落库失败 host=\(normalized):\(port): \(error)")
-            return (false, "结果落库失败: \(error.localizedDescription)")
+            AppLogger.shared.error("Probe", "Could not persist probe result host=\(normalized):\(port): \(error)")
+            return (false, "Could not persist the result: \(error.localizedDescription)")
         }
     }
 
-    // MARK: - 历史私有 CA 多目标特征算法自检
+    // MARK: - Reevaluate historical private CA recurrence
 
-    /// 启动时根据历史观测数据，执行跨目标算法评估并自动确认已具备特征的 CA
+    /// Evaluate historical observations on startup and confirm CAs meeting the inspection criteria.
     public func autoConfirmMultiTargetCAs() async {
         guard let clusters = try? repository.listCAClusters() else { return }
         for cluster in clusters {
             if cluster.identityKind == "public" { continue }
 
             let stats = (try? repository.countDistinctDomainsForCA(spki: cluster.spkiSha256, caName: cluster.caName)) ?? (total: 0, apex: 0)
-            // 满足条件 2: 多个不同的域名（超过10个）都是用1个相同的私有根证书
+            // Condition 2: one private root appears across more than 10 distinct domains.
             if stats.total > 10 {
                 let ruleKey = !cluster.spkiSha256.isEmpty ? cluster.spkiSha256 : cluster.caName
                 let autoRule = Rule(
                     ruleId: "auto_rule_" + String(ruleKey.prefix(16)).replacingOccurrences(of: ":", with: "").lowercased(),
-                    name: cluster.caName.isEmpty ? "企业拦截代理 CA" : cluster.caName,
+                    name: cluster.caName.isEmpty ? "Enterprise inspection CA" : cluster.caName,
                     kind: "inspection_ca",
                     matchType: !cluster.spkiSha256.isEmpty ? "ca_spki" : "ca_name",
                     matchValue: ruleKey,
                     domainScope: nil,
                     origin: "system_auto",
-                    explanation: "满足SWG中间人特征: 无法通过公网校验、本机受信任根校验通过，且拦截超过10个不同域名 (\(stats.total) 个域名)",
+                    explanation: "Inspection criteria met: public validation failed, a locally trusted root was accepted, and more than 10 distinct domains were observed (\(stats.total) domains)",
                     expiresAtMs: nil,
                     revision: 1
                 )
@@ -679,14 +679,14 @@ public actor MonitorAgent {
                     try repository.upsertRule(autoRule)
                     try repository.upgradeAllToConfirmedForCA(caName: cluster.caName, spkiSha256: cluster.spkiSha256)
                 } catch {
-                    AppLogger.shared.error("Startup", "启动自检自动确认失败，CA \"\(cluster.caName)\" 判定未生效: \(error)")
+                    AppLogger.shared.error("Startup", "Startup confirmation failed for CA \"\(cluster.caName)\"; classification was not applied: \(error)")
                     continue
                 }
-                AppLogger.shared.info("Startup", "⚡️ 启动自检: 历史 CA \"\(cluster.caName)\" 满足 SWG 中间人特征 (拦截超过10个不同域名: \(stats.total) 个)，已自动确认为【已确认】")
+                AppLogger.shared.info("Startup", "Startup check confirmed historical CA \"\(cluster.caName)\": inspection criteria met across \(stats.total) distinct domains")
             }
         }
     }
 
-    // MARK: - 清理全部数据 (data.clear, 第 33.3 章)
+    // MARK: - Clear all data (data.clear)
 
 }

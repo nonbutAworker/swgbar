@@ -1,7 +1,7 @@
 //
-// SWGBar / macOS 菜单栏 TLS 检查检测器
-// Go CoreWorker 桥接与探测引擎调度 (CoreWorkerBridge.swift)
-// 遵循技术方案 v1.1 第 06, 09, 10, 26 章：双向 IPC、避免死锁、原生信任回调
+// SWGBar / macOS menu bar TLS inspection detector
+// Go CoreWorker bridge and probe dispatch (CoreWorkerBridge.swift)
+// Bidirectional IPC with native trust callbacks and deadlock prevention.
 //
 
 import Foundation
@@ -82,7 +82,7 @@ public final class CoreWorkerBridge: @unchecked Sendable {
     
     public init() {}
     
-    /// 执行一次独立 IPv4 探测任务
+    /// Execute one independent IPv4 probe.
     public func executeProbe(
         host: String,
         port: Int = 443,
@@ -93,7 +93,7 @@ public final class CoreWorkerBridge: @unchecked Sendable {
     ) async -> ProbeExecutionResult {
         let reqId = UUID().uuidString
         
-        // 尝试使用 Go CoreWorker 外部进程进行显式网络探测
+        // Use the external Go CoreWorker process for the network probe.
         if let binaryPath = findCoreWorkerBinary() {
             return await executeViaGoWorker(
                 binaryPath: binaryPath,
@@ -111,7 +111,7 @@ public final class CoreWorkerBridge: @unchecked Sendable {
             host: host, port: port, remoteIp: "",
             handshakeCompleted: false,
             errorCode: "WORKER_NOT_FOUND",
-            errorMessage: "未找到 CoreWorker，无法执行 TLS 探测，请重新安装完整应用"
+            errorMessage: "CoreWorker was not found. Reinstall the complete application to run TLS probes."
         )
     }
     
@@ -137,7 +137,7 @@ public final class CoreWorkerBridge: @unchecked Sendable {
             return
         }
         
-        // 清理旧进程资源
+        // Release resources from the previous process.
         process?.terminate()
         process = nil
         stdinPipe = nil
@@ -150,12 +150,12 @@ public final class CoreWorkerBridge: @unchecked Sendable {
         proc.standardInput = inPipe
         proc.standardOutput = outPipe
         
-        AppLogger.shared.info("CoreWorker", "正在启动持久化 Go CoreWorker 探测子进程 (\(binaryPath))...")
+        AppLogger.shared.info("CoreWorker", "Starting the persistent Go CoreWorker probe process (\(binaryPath))...")
         try proc.run()
         self.process = proc
         self.stdinPipe = inPipe
         self.stdoutPipe = outPipe
-        AppLogger.shared.info("CoreWorker", "✅ Go CoreWorker 子进程启动就绪 (PID: \(proc.processIdentifier))")
+        AppLogger.shared.info("CoreWorker", "✅ Go CoreWorker process is ready (PID: \(proc.processIdentifier))")
         
         let handle = outPipe.fileHandleForReading
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
@@ -189,7 +189,7 @@ public final class CoreWorkerBridge: @unchecked Sendable {
                 }
                 
                 if method == "native_trust.evaluate" {
-                    // 处理 Go CoreWorker 回调的 macOS SecTrust 验证
+                    // Handle a macOS SecTrust validation callback from CoreWorker.
                     let h = obj["host"] as? String ?? ""
                     var ders: [Data] = []
                     if let b64s = obj["der_chain_base64"] as? [String] {
@@ -220,7 +220,7 @@ public final class CoreWorkerBridge: @unchecked Sendable {
                     }
                     
                 } else if method == "probe.result" {
-                    // 解析 probe.result 结果并触发对应 request_id 的 continuation
+                    // Decode probe.result and resume the continuation for its request_id.
                     let outcomeRes = parseProbeResult(obj: obj)
                     lock.lock()
                     let cont = pendingProbes.removeValue(forKey: reqId)
@@ -230,7 +230,7 @@ public final class CoreWorkerBridge: @unchecked Sendable {
             }
         }
         
-        // 若子进程退出，唤醒并恢复所有挂起的探测请求
+        // Resume all pending requests when the worker exits.
         lock.lock()
         let pendings = pendingProbes
         pendingProbes.removeAll()
@@ -374,11 +374,11 @@ public final class CoreWorkerBridge: @unchecked Sendable {
             
             sendRawDataToWorker(bytes)
         }
-        AppLogger.shared.info("Probe", "探测结果 host=\(host):\(port) -> IP=\(res.remoteIp), 握手=\(res.handshakeCompleted ? "成功" : "失败"), 耗时=\(res.durationMs)ms, 根证书=\(res.caSubjects.last ?? (res.caSubjects.first ?? "无")), ExtraAnchor=\(res.isExtraAnchor ? "是 [\(res.extraAnchorSubject ?? "")]" : "否"), PublicPKIX=\(res.publicPkixPassed ? "通过" : "不通过"), NativeSecTrust=\(res.nativeAccepted ? "受信任" : "未受信任")")
+        AppLogger.shared.info("Probe", "Probe result host=\(host):\(port) -> IP=\(res.remoteIp), handshake=\(res.handshakeCompleted ? "succeeded" : "failed"), duration=\(res.durationMs)ms, root CA=\(res.caSubjects.last ?? (res.caSubjects.first ?? "None")), ExtraAnchor=\(res.isExtraAnchor ? "yes [\(res.extraAnchorSubject ?? "")]" : "no"), PublicPKIX=\(res.publicPkixPassed ? "passed" : "failed"), NativeSecTrust=\(res.nativeAccepted ? "trusted" : "untrusted")")
         return res
     }
     
-    /// 优雅终止常驻 CoreWorker 进程
+    /// Terminate the persistent CoreWorker process gracefully.
     public func terminate() {
         lock.lock()
         defer { lock.unlock() }

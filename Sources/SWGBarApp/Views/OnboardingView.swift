@@ -1,7 +1,7 @@
 //
-// SWGBar / macOS 菜单栏 TLS 检查检测器
-// 首次运行与分步授权 (OnboardingView.swift)
-// 遵循技术方案 v1.1 第 16.2 章与图 16-1 视觉设计
+// SWGBar / macOS menu bar TLS inspection detector
+// First-run permissions and probe preferences (OnboardingView.swift)
+// Step-by-step introduction and permission controls.
 //
 
 import SwiftUI
@@ -20,40 +20,40 @@ public struct OnboardingView: View {
     public var body: some View {
         ScrollView(.vertical, showsIndicators: true) {
             VStack(alignment: .leading, spacing: 14) {
-                // 顶部说明
+                // Introduction
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("开始使用 SWGBar")
+                    Text("Welcome to SWGBar")
                         .font(.system(size: 17, weight: .bold))
                     
-                    Text("采集域名与证书元数据；不保存正文。\n主动探测会产生额外连接。")
+                    Text("Collects domain and certificate metadata, without saving message bodies.\nActive probes create additional connections.")
                         .font(UITheme.bodyFont)
                         .foregroundColor(.primary)
                     
-                    Text("不安装根 CA，不修改现有代理策略。")
+                    Text("Does not install root CAs or change proxy settings.")
                         .font(UITheme.subFont)
                         .foregroundColor(.secondary)
                 }
                 
-                // 授权与探测分步卡片
+                // Permission and probe steps
                 VStack(alignment: .leading, spacing: 10) {
                     HStack {
-                        Text("授权与探测")
+                        Text("Permissions and probes")
                             .font(UITheme.subBoldFont)
                         Spacer()
-                        Text(step1Done && step2Done ? "已授权" : "尚未启用")
+                        Text(step1Done && step2Done ? "Allowed" : "Not enabled")
                             .font(.system(size: 10))
                             .foregroundColor(step1Done ? .green : .secondary)
                     }
                     
-                    stepRow(index: 1, title: "系统扩展授权", desc: "只请求本产品的系统扩展权限", state: step1Done ? "已授权" : "未开始", ok: step1Done) {
+                    stepRow(index: 1, title: "System extension permission", desc: "Request permission for this application's system extension only", state: step1Done ? "Allowed" : "Not started", ok: step1Done) {
                         step1Done = true
                     }
                     
-                    stepRow(index: 2, title: "网络过滤授权", desc: "仅观察可用元数据，立即放行", state: step2Done ? "已完成" : "待完成", ok: step2Done) {
+                    stepRow(index: 2, title: "Network filter permission", desc: "Observe available metadata and allow traffic immediately", state: step2Done ? "Complete" : "Pending", ok: step2Done) {
                         step2Done = true
                     }
                     
-                    stepRow(index: 3, title: "自动探测新域名", desc: "12 次/分钟；300 次/小时；1000 次/日", state: step3Agreed ? "已同意" : "待同意", ok: step3Agreed) {
+                    stepRow(index: 3, title: "Automatically probe new domains", desc: "12/minute; 300/hour; 1,000/day", state: step3Agreed ? "Agreed" : "Consent required", ok: step3Agreed) {
                         step3Agreed.toggle()
                     }
                 }
@@ -61,17 +61,17 @@ public struct OnboardingView: View {
                 .background(Color(NSColor.controlBackgroundColor))
                 .cornerRadius(UITheme.cardCornerRadius)
                 
-                // 浏览器增强 (可选)
+                // Optional browser integration
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
-                        Text("浏览器增强")
+                        Text("Browser integration")
                             .font(UITheme.subBoldFont)
                         Spacer()
-                        Text("可选")
+                        Text("Optional")
                             .font(.system(size: 10))
                             .foregroundColor(.secondary)
                     }
-                    Text("默认关闭；不影响基础版独立探测。")
+                    Text("Disabled by default; independent probes remain available.")
                         .font(UITheme.subFont)
                         .foregroundColor(.secondary)
                 }
@@ -80,34 +80,34 @@ public struct OnboardingView: View {
                 .background(Color(NSColor.controlBackgroundColor))
                 .cornerRadius(UITheme.cardCornerRadius)
                 
-                // 操作按钮
+                // Action buttons
                 HStack(spacing: 10) {
-                    Button("启用本机监测") {
+                    Button("Enable monitoring") {
                         step1Done = true
                         step2Done = true
                         vm.configuration.systemCaptureEnabled = true
                         vm.configuration.autoProbeEnabled = step3Agreed
                         vm.showingOnboarding = false
-                        vm.showToast("本机监测已成功启用")
+                        vm.showToast("Local monitoring enabled")
                     }
                     .buttonStyle(.borderedProminent)
                     .frame(maxWidth: .infinity)
                     
-                    Button("仅手动探测") {
+                    Button("Manual probes only") {
                         vm.configuration.systemCaptureEnabled = false
                         vm.configuration.autoProbeEnabled = false
                         vm.showingOnboarding = false
-                        vm.showToast("已切换为仅手动探测模式")
+                        vm.showToast("Switched to manual probes only")
                     }
                     .buttonStyle(.bordered)
                     .frame(maxWidth: .infinity)
                 }
                 .padding(.top, 4)
                 
-                // 辅助链接
+                // Supporting links
                 HStack {
-                    Button("查看授权说明") {
-                        vm.showToast("SWGBar 仅请求 Network Extension 过滤权限，不接管私钥")
+                    Button("About permissions") {
+                        vm.showToast("SWGBar requests network filter permission; it does not take control of private keys")
                     }
                     .buttonStyle(.plain)
                     .font(UITheme.subFont)
@@ -115,7 +115,7 @@ public struct OnboardingView: View {
                     
                     Spacer()
                     
-                    Button("打开系统设置 >") {
+                    Button("Open System Settings >") {
                         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy") {
                             NSWorkspace.shared.open(url)
                         }

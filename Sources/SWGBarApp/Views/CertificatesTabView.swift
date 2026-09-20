@@ -1,7 +1,7 @@
 //
-// SWGBar / macOS 菜单栏 TLS 检查检测器
-// Tab 3：证书与 CA 聚类 (CertificatesTabView.swift)
-// 遵循技术方案 v1.1 第 20 章与图 20-1 视觉设计
+// SWGBar / macOS menu bar TLS inspection detector
+// Tab 3: Certificates and CA clusters (CertificatesTabView.swift)
+// Certificate cluster list and filters.
 //
 
 import SwiftUI
@@ -37,7 +37,7 @@ public struct CertificatesTabView: View {
     private var certificatesListContent: some View {
         ZStack(alignment: .top) {
             VStack(spacing: 8) {
-                // 同级别、并列同行、独立搜索的双搜索栏（按 CA 名称搜索 AND 按状态筛选）
+                // Place CA name search and status filtering side by side; combine them using AND.
                 HStack(spacing: 8) {
                     caSearchField
                     statusFilterDropdown
@@ -45,14 +45,14 @@ public struct CertificatesTabView: View {
                 .padding(.horizontal, 16)
                 .padding(.top, 10)
             
-            // 状态栏：匹配数量与重置操作
+            // Show the match count and reset action.
             HStack(spacing: 6) {
                 Circle()
                     .fill(Color.green)
                     .frame(width: 6, height: 6)
                 
                 let isFiltered = (vm.caStatusFilter != "ALL" || !vm.caSearchText.isEmpty)
-                Text(isFiltered ? "匹配 \(vm.displayedCAClusters.count) 个证书簇" : "已识别 \(vm.displayedCAClusters.count) 个证书簇")
+                Text(isFiltered ? "\(vm.displayedCAClusters.count) matching certificate clusters" : "\(vm.displayedCAClusters.count) certificate clusters found")
                     .font(UITheme.subFont)
                     .foregroundColor(.secondary)
                 
@@ -60,7 +60,7 @@ public struct CertificatesTabView: View {
             }
             .padding(.horizontal, 16)
             
-            // CA 簇单页统一列表
+            // Unified CA cluster list
             ScrollView(.vertical, showsIndicators: true) {
                 if vm.displayedCAClusters.isEmpty {
                     VStack(spacing: 12) {
@@ -68,7 +68,7 @@ public struct CertificatesTabView: View {
                             .font(.system(size: 32))
                             .foregroundColor(.secondary.opacity(0.7))
                             .padding(.top, 40)
-                        Text("无匹配证书簇")
+                        Text("No matching certificate clusters")
                             .font(UITheme.bodyBoldFont)
                             .foregroundColor(.secondary)
                     }
@@ -84,7 +84,7 @@ public struct CertificatesTabView: View {
             }
         }
             
-            // 浮动在列表上方的状态筛选下拉卡片（严格受限于窗口内部，靠右对齐，绝不超出页面边缘）
+            // Align the status popover to the right and keep it inside the panel bounds.
             if showingStatusPopover {
                 Color.black.opacity(0.001)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -112,14 +112,14 @@ public struct CertificatesTabView: View {
         }
     }
     
-    // MARK: - 按证书名称搜索框（与状态筛选同级别并列同行）
+    // MARK: - Certificate name search
     private var caSearchField: some View {
         HStack(spacing: 6) {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 11, weight: .medium))
                 .foregroundColor(.secondary)
             
-            TextField("按证书名称搜索...", text: $vm.caSearchText)
+            TextField("Search certificate names...", text: $vm.caSearchText)
                 .textFieldStyle(.plain)
                 .font(UITheme.subFont)
                 .accessibilityIdentifier("C02_search_ca")
@@ -145,7 +145,7 @@ public struct CertificatesTabView: View {
         .liquidGlassInput(isFocusedOrActive: !vm.caSearchText.isEmpty, cornerRadius: 8)
     }
     
-    // MARK: - 按状态筛选框（与证书名称搜索同级别并列同行）
+    // MARK: - Certificate status filter
     private var statusFilterDropdown: some View {
         HStack(spacing: 4) {
             Button(action: {
@@ -193,7 +193,7 @@ public struct CertificatesTabView: View {
                         .foregroundColor(.secondary)
                 }
                 .buttonStyle(.plain)
-                .help("清除状态过滤")
+                .help("Clear status filter")
             }
         }
         .padding(.horizontal, 8)
@@ -204,10 +204,10 @@ public struct CertificatesTabView: View {
     
     private var statusFilterDisplayText: String {
         switch vm.caStatusFilter {
-        case "inspection": return "确认"
-        case "suspected": return "疑似"
-        case "public": return "公共"
-        default: return "按证书状态筛选..."
+        case "inspection": return "Confirmed"
+        case "suspected": return "Suspected"
+        case "public": return "Public"
+        default: return "Filter by status..."
         }
     }
     
@@ -218,15 +218,15 @@ public struct CertificatesTabView: View {
     }
     
     private let statusOptions: [StatusOption] = [
-        StatusOption(id: "ALL", name: "全部状态", kind: "ALL"),
-        StatusOption(id: "inspection", name: "确认", kind: "inspection"),
-        StatusOption(id: "suspected", name: "疑似", kind: "suspected"),
-        StatusOption(id: "public", name: "公共", kind: "public")
+        StatusOption(id: "ALL", name: "All statuses", kind: "ALL"),
+        StatusOption(id: "inspection", name: "Confirmed", kind: "inspection"),
+        StatusOption(id: "suspected", name: "Suspected", kind: "suspected"),
+        StatusOption(id: "public", name: "Public", kind: "public")
     ]
     
     private var statusPickerPopoverView: some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text("按证书状态筛选")
+            Text("Filter by certificate status")
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundColor(.secondary)
                 .padding(.horizontal, 8)
@@ -298,7 +298,7 @@ public struct CertificatesTabView: View {
         .shadow(color: Color.black.opacity(0.28), radius: 18, x: 0, y: 10)
     }
     
-    // MARK: - 证书簇项 (C04: Liquid Glass 晶莹交互行卡片)
+    // MARK: - Certificate cluster row (C04)
     private func caRowView(ca: CADetail) -> some View {
         let isHovered = (hoveredCAId == ca.clusterId)
         return HStack(spacing: 8) {
@@ -319,7 +319,7 @@ public struct CertificatesTabView: View {
             
             Spacer()
             
-            Text("\(ca.affectedDomainsCount) 个域名")
+            Text("\(ca.affectedDomainsCount) domains")
                 .font(UITheme.subFont)
                 .foregroundColor(.secondary)
             

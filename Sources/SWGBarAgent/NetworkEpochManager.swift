@@ -1,7 +1,7 @@
 //
-// SWGBar / macOS 菜单栏 TLS 检查检测器
-// 网络阶段管理器 (NetworkEpochManager.swift)
-// 遵循技术方案 v1.1 第 13.2 章：去抖 2s，阶段隔离，取消未发出任务
+// SWGBar / macOS menu bar TLS inspection detector
+// Network epoch manager (NetworkEpochManager.swift)
+// Debounce changes for two seconds, isolate epochs, and cancel unsent work.
 //
 
 import Foundation
@@ -13,7 +13,7 @@ public final class NetworkEpochManager: @unchecked Sendable {
     
     private var currentEpochIndex: Int = 1
     public private(set) var currentEpochId: String = "epoch-01"
-    public private(set) var currentEpochName: String = "网络阶段 01"
+    public private(set) var currentEpochName: String = "Network epoch 01"
     
     private let pathMonitor: NWPathMonitor
     private let monitorQueue = DispatchQueue(label: "com.swgbar.epochmonitor")
@@ -52,7 +52,7 @@ public final class NetworkEpochManager: @unchecked Sendable {
         lock.lock()
         currentEpochIndex += 1
         let newId = String(format: "epoch-%02d", currentEpochIndex)
-        let newName = String(format: "网络阶段 %02d", currentEpochIndex)
+        let newName = String(format: "Network epoch %02d", currentEpochIndex)
         currentEpochId = newId
         currentEpochName = newName
         let callback = onEpochChanged

@@ -1,7 +1,7 @@
 //
-// SWGBar / macOS 菜单栏 TLS 检查检测器
-// SQLite 底层数据库引擎 (Database.swift)
-// 遵循技术方案 v1.1 第 31-33 章：单写者、WAL 模式、外键、超时与不可变快照读
+// SWGBar / macOS menu bar TLS inspection detector
+// SQLite database engine (Database.swift)
+// Single-writer storage with WAL, foreign keys, timeouts, and immutable snapshot reads.
 //
 
 import Foundation
@@ -43,20 +43,20 @@ public final class SQLiteDatabase: @unchecked Sendable {
         }
     }
 
-    // MARK: - PRAGMA 配置
+    // MARK: - PRAGMA configuration
 
     private func configurePragmas() throws {
         try execute(sql: "PRAGMA foreign_keys = ON;")
         if path != ":memory:" {
             try execute(sql: "PRAGMA journal_mode = WAL;")
             try execute(sql: "PRAGMA synchronous = NORMAL;")
-            try execute(sql: "PRAGMA cache_size = -8000;") // 8MB 内存页缓存
+            try execute(sql: "PRAGMA cache_size = -8000;") // 8 MB page cache
             try execute(sql: "PRAGMA temp_store = MEMORY;")
         }
         try execute(sql: "PRAGMA busy_timeout = 5000;")
     }
 
-    // MARK: - Schema 初始化与迁移
+    // MARK: - Schema initialization and migration
 
     private func createSchemaIfNeeded() throws {
         let ddl = """
@@ -279,7 +279,7 @@ public final class SQLiteDatabase: @unchecked Sendable {
         );
         CREATE INDEX IF NOT EXISTS command_receipts_expires_idx ON command_receipts(expires_at_ms);
 
-        -- 性能优化索引：加速按请求次数排序、CA 聚类与证书链关联
+        -- Indexes accelerate request-count sorting, CA clustering, and certificate chain joins.
         CREATE INDEX IF NOT EXISTS targets_req_count_idx ON targets(request_count DESC);
         CREATE INDEX IF NOT EXISTS cluster_certs_idx ON cluster_certificates(cluster_id, cert_id);
         CREATE INDEX IF NOT EXISTS obs_certs_cert_id_idx ON observation_certificates(cert_id);
@@ -287,7 +287,7 @@ public final class SQLiteDatabase: @unchecked Sendable {
         try execute(sql: ddl)
     }
 
-    // MARK: - 执行语句
+    // MARK: - Execute statements
 
     public func execute(sql: String) throws {
         lock.lock()
@@ -310,13 +310,13 @@ public final class SQLiteDatabase: @unchecked Sendable {
             do {
                 try execute(sql: "ROLLBACK;")
             } catch let rollbackError {
-                AppLogger.shared.error("Database", "事务回滚失败，数据可能处于不一致状态: \(rollbackError)")
+                AppLogger.shared.error("Database", "Transaction rollback failed; data may be inconsistent: \(rollbackError)")
             }
             throw error
         }
     }
 
-    // MARK: - 预编译语句
+    // MARK: - Prepared statements
 
     public func prepare(sql: String) throws -> SQLiteStatement {
         lock.lock()
@@ -329,7 +329,7 @@ public final class SQLiteDatabase: @unchecked Sendable {
         return SQLiteStatement(stmt: stmt!, lock: lock, isCached: false)
     }
 
-    /// 复用预编译语句执行闭包，避免对高频查询反复解析 SQL 语法树
+    /// Reuse prepared statements to avoid reparsing SQL for frequent queries.
     public func withCachedStatement<T>(sql: String, _ block: (SQLiteStatement) throws -> T) throws -> T {
         lock.lock()
         defer { lock.unlock() }
@@ -360,7 +360,7 @@ public final class SQLiteDatabase: @unchecked Sendable {
         }
     }
 
-    // 强制执行 WAL checkpoint
+    // Force a WAL checkpoint.
     public func checkpoint() throws {
         if path != ":memory:" {
             try execute(sql: "PRAGMA wal_checkpoint(TRUNCATE);")

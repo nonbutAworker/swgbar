@@ -1,17 +1,17 @@
 -- SWGBar SQLite Schema DDL
--- 遵循技术方案 v1.1 第 31-32 章
--- 启用 WAL、外键与索引优化
+-- SQLite schema for persistent application data.
+-- Enable WAL, foreign keys, and supporting indexes.
 
 PRAGMA foreign_keys = ON;
 
--- 1. 迁移记录表
+-- 1. Schema migrations
 CREATE TABLE IF NOT EXISTS schema_migrations (
     version INTEGER PRIMARY KEY,
     checksum TEXT NOT NULL,
     applied_at_ms INTEGER NOT NULL
 );
 
--- 2. 网络阶段表
+-- 2. Network epochs
 CREATE TABLE IF NOT EXISTS network_epochs (
     id TEXT PRIMARY KEY,
     start_ms INTEGER NOT NULL,
@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS network_epochs (
     name TEXT NOT NULL
 );
 
--- 3. 采集会话表
+-- 3. Capture sessions
 CREATE TABLE IF NOT EXISTS capture_sessions (
     id TEXT PRIMARY KEY,
     source TEXT NOT NULL,
@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS capture_sessions (
     ended_at_ms INTEGER
 );
 
--- 4. 来源应用表
+-- 4. Source applications
 CREATE TABLE IF NOT EXISTS applications (
     id TEXT PRIMARY KEY,
     bundle_id TEXT,
@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS applications (
     uid INTEGER NOT NULL
 );
 
--- 5. 目标表 (规范域名与加密存储)
+-- 5. Normalized targets with encrypted hostnames
 CREATE TABLE IF NOT EXISTS targets (
     id TEXT PRIMARY KEY,
     host_hmac TEXT NOT NULL UNIQUE,
@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS targets (
 );
 CREATE INDEX IF NOT EXISTS targets_port_idx ON targets(port);
 
--- 6. 业务观察表 (核心事实表)
+-- 6. Observations: the core evidence records
 CREATE TABLE IF NOT EXISTS observations (
     id TEXT PRIMARY KEY,
     source_instance_id TEXT NOT NULL,
@@ -78,7 +78,7 @@ CREATE TABLE IF NOT EXISTS observations (
 CREATE INDEX IF NOT EXISTS observations_window_idx ON observations(epoch_id, source, observed_at_ms DESC);
 CREATE INDEX IF NOT EXISTS observations_target_idx ON observations(target_id, observed_at_ms DESC);
 
--- 7. 传输去重表 (幂等处理)
+-- 7. Transport deduplication and idempotency
 CREATE TABLE IF NOT EXISTS ingest_dedup (
     source_instance TEXT NOT NULL,
     sequence INTEGER NOT NULL,
@@ -86,7 +86,7 @@ CREATE TABLE IF NOT EXISTS ingest_dedup (
     PRIMARY KEY(source_instance, sequence)
 );
 
--- 8. 证书实体表 (证书去重与公钥指纹)
+-- 8. Certificates and public-key fingerprints
 CREATE TABLE IF NOT EXISTS certificates (
     cert_id TEXT PRIMARY KEY, -- SHA256(DER)
     spki_id TEXT NOT NULL,   -- SHA256(RawSubjectPublicKeyInfo)
@@ -103,7 +103,7 @@ CREATE TABLE IF NOT EXISTS certificates (
 );
 CREATE INDEX IF NOT EXISTS certificates_spki_idx ON certificates(spki_id);
 
--- 9. 观察与证书关联表 (呈现链与验证链)
+-- 9. Observation-to-certificate associations for presented and validated chains
 CREATE TABLE IF NOT EXISTS observation_certificates (
     observation_id TEXT NOT NULL REFERENCES observations(id) ON DELETE CASCADE,
     cert_id TEXT NOT NULL REFERENCES certificates(cert_id),
@@ -113,7 +113,7 @@ CREATE TABLE IF NOT EXISTS observation_certificates (
     PRIMARY KEY(observation_id, chain_type, ordinal)
 );
 
--- 10. 双轨信任验证记录表
+-- 10. Native and public trust evaluation records
 CREATE TABLE IF NOT EXISTS trust_evaluations (
     id TEXT PRIMARY KEY,
     observation_id TEXT NOT NULL REFERENCES observations(id) ON DELETE CASCADE,
@@ -126,7 +126,7 @@ CREATE TABLE IF NOT EXISTS trust_evaluations (
 );
 CREATE INDEX IF NOT EXISTS trust_evaluations_obs_idx ON trust_evaluations(observation_id);
 
--- 11. 不可变分类修订表
+-- 11. Immutable classification revisions
 CREATE TABLE IF NOT EXISTS classifications (
     id TEXT PRIMARY KEY,
     observation_id TEXT NOT NULL REFERENCES observations(id) ON DELETE CASCADE,
@@ -138,7 +138,7 @@ CREATE TABLE IF NOT EXISTS classifications (
 );
 CREATE INDEX IF NOT EXISTS classifications_obs_rev_idx ON classifications(observation_id, revision DESC);
 
--- 视图：获取最新分类结果
+-- View of the latest classification for each observation
 CREATE VIEW IF NOT EXISTS current_classifications AS
 SELECT c.*
 FROM classifications c
@@ -148,7 +148,7 @@ INNER JOIN (
     GROUP BY observation_id
 ) m ON c.observation_id = m.observation_id AND c.revision = m.max_revision;
 
--- 12. CA 聚类表
+-- 12. CA clusters
 CREATE TABLE IF NOT EXISTS ca_clusters (
     id TEXT PRIMARY KEY,
     ca_key_id TEXT NOT NULL UNIQUE,
@@ -158,14 +158,14 @@ CREATE TABLE IF NOT EXISTS ca_clusters (
     updated_at_ms INTEGER NOT NULL
 );
 
--- 13. CA 聚类与证书关联表
+-- 13. Cluster-to-certificate associations
 CREATE TABLE IF NOT EXISTS cluster_certificates (
     cluster_id TEXT NOT NULL REFERENCES ca_clusters(id) ON DELETE CASCADE,
     cert_id TEXT NOT NULL REFERENCES certificates(cert_id),
     PRIMARY KEY(cluster_id, cert_id)
 );
 
--- 14. 规则表
+-- 14. Rules
 CREATE TABLE IF NOT EXISTS rules (
     id TEXT PRIMARY KEY,
     kind TEXT NOT NULL CHECK(kind IN ('inspection_ca', 'expected_private', 'probe_exclude', 'capture_exclude', 'intranet_allowed')),
@@ -182,7 +182,7 @@ CREATE TABLE IF NOT EXISTS rules (
 );
 CREATE INDEX IF NOT EXISTS rules_lookup_idx ON rules(kind, match_type, match_value);
 
--- 15. 异步探测任务表
+-- 15. Asynchronous probe tasks
 CREATE TABLE IF NOT EXISTS probe_jobs (
     id TEXT PRIMARY KEY,
     target_id TEXT NOT NULL REFERENCES targets(id),
@@ -194,7 +194,7 @@ CREATE TABLE IF NOT EXISTS probe_jobs (
 );
 CREATE INDEX IF NOT EXISTS probe_jobs_state_idx ON probe_jobs(state, deadline_ms);
 
--- 16. UI 时间线与审计事件表
+-- 16. Timeline and audit events
 CREATE TABLE IF NOT EXISTS events (
     id TEXT PRIMARY KEY,
     kind TEXT NOT NULL,
@@ -205,7 +205,7 @@ CREATE TABLE IF NOT EXISTS events (
 );
 CREATE INDEX IF NOT EXISTS events_time_idx ON events(time_ms DESC);
 
--- 17. 历史快照统计表
+-- 17. Historical snapshot metrics
 CREATE TABLE IF NOT EXISTS metric_snapshots (
     id TEXT PRIMARY KEY,
     metric_kind TEXT NOT NULL,
@@ -217,7 +217,7 @@ CREATE TABLE IF NOT EXISTS metric_snapshots (
 );
 CREATE INDEX IF NOT EXISTS metric_snapshots_epoch_idx ON metric_snapshots(epoch_id, metric_kind, generated_at_ms DESC);
 
--- 18. 覆盖与断流区间表
+-- 18. Coverage and gap intervals
 CREATE TABLE IF NOT EXISTS coverage_intervals (
     id TEXT PRIMARY KEY,
     source TEXT NOT NULL,
@@ -227,14 +227,14 @@ CREATE TABLE IF NOT EXISTS coverage_intervals (
     reason TEXT NOT NULL
 );
 
--- 19. 配置表 (乐观锁 revision)
+-- 19. Configuration with optimistic revision locking
 CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL,
     revision INTEGER NOT NULL DEFAULT 1
 );
 
--- 20. 幂等操作回执表
+-- 20. Idempotent operation receipts
 CREATE TABLE IF NOT EXISTS command_receipts (
     operation_id TEXT PRIMARY KEY,
     result_json TEXT NOT NULL,
@@ -242,7 +242,7 @@ CREATE TABLE IF NOT EXISTS command_receipts (
 );
 CREATE INDEX IF NOT EXISTS command_receipts_expires_idx ON command_receipts(expires_at_ms);
 
--- 性能优化索引：加速按请求次数排序、CA 聚类与证书链关联
+-- Indexes accelerate request-count sorting, CA clustering, and certificate chain joins.
 CREATE INDEX IF NOT EXISTS targets_req_count_idx ON targets(request_count DESC);
 CREATE INDEX IF NOT EXISTS cluster_certs_idx ON cluster_certificates(cluster_id, cert_id);
 CREATE INDEX IF NOT EXISTS obs_certs_cert_id_idx ON observation_certificates(cert_id);

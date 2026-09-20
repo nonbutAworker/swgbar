@@ -5,6 +5,7 @@ build/
 *.app/
 *.dmg
 *.zip
+*.pkg
 *.dSYM/
 
 # Local configuration and runtime data

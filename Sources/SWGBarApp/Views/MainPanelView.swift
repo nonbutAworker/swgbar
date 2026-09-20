@@ -1,7 +1,7 @@
 //
-// SWGBar / macOS 菜单栏 TLS 检查检测器
-// 菜单栏紧凑面板主容器 (MainPanelView.swift)
-// 遵循技术方案 v1.1 第 15 章与图 15-1：420×640 pt，五 Tab，无第二独立窗口
+// SWGBar / macOS menu bar TLS inspection detector
+// Compact menu bar panel container (MainPanelView.swift)
+// A single compact panel with three tabs and inline navigation.
 //
 
 import SwiftUI
@@ -16,7 +16,7 @@ public struct MainPanelView: View {
     
     public var body: some View {
         VStack(spacing: 0) {
-            // 吐司提示 (如操作反馈)
+            // Transient operation feedback
             if let toast = vm.notificationToast {
                 HStack {
                     Image(systemName: "checkmark.circle.fill")
@@ -31,12 +31,12 @@ public struct MainPanelView: View {
                 .transition(.move(edge: .top).combined(with: .opacity))
             }
             
-            // 2. 三 Tab 选择栏 (32 pt, G03)
+            // 2. Three-tab selector (G03)
             tabBar
             
             Divider()
             
-            // 3. 主内容区 (各 Tab 内容常驻，利用 LazyVStack 消除反复销毁创建的重绘卡顿)
+            // 3. Keep tab contents mounted and use lazy stacks to reduce view recreation.
             ZStack {
                 if vm.showingOnboarding {
                     OnboardingView(vm: vm)
@@ -58,17 +58,17 @@ public struct MainPanelView: View {
             
             Divider()
             
-            // 4. 固定底栏 (28 pt)
+            // 4. Fixed footer (28 points)
             FooterView(vm: vm)
         }
         .frame(width: UITheme.panelWidth, height: UITheme.panelStandardHeight)
         .background(
             ZStack {
-                // 1. 系统底层超清超细毛玻璃材质（半透穿透桌面）
+                // 1. Translucent system material
                 Rectangle()
                     .fill(.ultraThinMaterial)
                 
-                // 2. 弱微光环境漫反射渐变，营造晶莹深度
+                // 2. A subtle gradient adds depth.
                 LinearGradient(
                     colors: [
                         Color.white.opacity(0.06),
@@ -82,12 +82,12 @@ public struct MainPanelView: View {
         )
     }
     
-    // MARK: - 三 Tab 栏 (G03, 快捷键 Cmd+1...3, Liquid Glass 浮动晶莹胶囊切换器)
+    // MARK: - Three-tab selector (G03)
     private var tabBar: some View {
         HStack(spacing: 4) {
-            tabButton(title: "总览", icon: "house", index: 0)
-            tabButton(title: "域名", icon: "globe", index: 1)
-            tabButton(title: "证书", icon: "doc.plaintext", index: 2)
+            tabButton(title: "Overview", icon: "house", index: 0)
+            tabButton(title: "Domains", icon: "globe", index: 1)
+            tabButton(title: "Certificates", icon: "doc.plaintext", index: 2)
         }
         .padding(3)
         .background(

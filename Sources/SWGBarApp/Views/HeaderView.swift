@@ -1,6 +1,6 @@
 //
-// SWGBar / macOS 菜单栏 TLS 检查检测器
-// 底部状态栏：本地处理说明与监测状态圆点
+// SWGBar / macOS menu bar TLS inspection detector
+// Footer: local processing notice and monitoring status control
 //
 
 import SwiftUI
@@ -21,11 +21,11 @@ public struct FooterView: View {
 
             Spacer()
 
-            Text("所有数据均在本地完成处理")
+            Text("Processed on this Mac")
                 .font(.system(size: 10))
                 .foregroundColor(.secondary)
 
-            // 状态点即暂停/恢复开关：绿色跳动表示监测中，点击后转为灰色静止
+            // The green pulsing dot pauses monitoring; the paused state uses a static gray dot.
             Button(action: {
                 vm.togglePause()
             }) {
@@ -43,13 +43,13 @@ public struct FooterView: View {
                         statusDot
                     }
                 }
-                // 放大命中区域，6pt 的圆点本身过小不易点中
+                // Enlarge the hit area around the six-point status dot.
                 .frame(width: 20, height: 20)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .help(toggleHint)
-            .accessibilityLabel("监测状态")
+            .accessibilityLabel("Monitoring status")
             .accessibilityValue(statusText)
             .accessibilityHint(toggleHint)
         }
@@ -78,17 +78,17 @@ public struct FooterView: View {
             .frame(width: 6, height: 6)
     }
 
-    /// 悬停与辅助功能提示：同时说明当前状态与点击后的行为
+    /// Explain both the current state and the click action in hover and accessibility hints.
     private var toggleHint: String {
-        vm.snapshot.collectorState == .running ? "正在监测 · 点击暂停" : "\(statusText) · 点击恢复监测"
+        vm.snapshot.collectorState == .running ? "Monitoring - click to pause" : "\(statusText) · click to resume monitoring"
     }
 
     private var statusText: String {
         switch vm.snapshot.collectorState {
-        case .running: return "正在监测"
-        case .paused: return "已暂停"
-        case .authorizing, .unconfigured: return "等待授权"
-        case .degraded: return "降级运行"
+        case .running: return "Monitoring"
+        case .paused: return "Paused"
+        case .authorizing, .unconfigured: return "Awaiting permission"
+        case .degraded: return "Limited monitoring"
         }
     }
 

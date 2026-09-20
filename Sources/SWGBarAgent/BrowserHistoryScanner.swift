@@ -1,7 +1,7 @@
 //
-// SWGBar / macOS 菜单栏 TLS 检查检测器
-// 浏览器历史记录扫描器 (BrowserHistoryScanner.swift)
-// 扫描 Chromium 系浏览器 History 数据库，发现本机真实访问的 HTTPS 域名与请求次数
+// SWGBar / macOS menu bar TLS inspection detector
+// Browser history scanner (BrowserHistoryScanner.swift)
+// Discover HTTPS hostnames and request counts from local Chromium history databases.
 //
 
 import Foundation
@@ -28,7 +28,7 @@ public final class BrowserHistoryScanner: @unchecked Sendable {
         let port: Int
     }
     
-    /// 扫描所有 Chromium 系浏览器 History 数据库，返回按请求次数降序排列的 HTTPS 域名与端口
+    /// Scan Chromium history databases and return HTTPS endpoints ordered by request count.
     public func scanAllBrowserHistories() -> [DiscoveredDomain] {
         let historyFiles = findHistoryFiles()
         var aggregated: [HistoryKey: Int64] = [:]
@@ -46,7 +46,7 @@ public final class BrowserHistoryScanner: @unchecked Sendable {
             .sorted { $0.requestCount > $1.requestCount }
     }
     
-    // MARK: - 查找浏览器 History 文件
+    // MARK: - Locate browser history files
     
     private func findHistoryFiles() -> [String] {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
@@ -54,14 +54,14 @@ public final class BrowserHistoryScanner: @unchecked Sendable {
         let fm = FileManager.default
         var discoveredSet = Set<String>()
         
-        // 通用纯动态自动发现：零 Hardcode 遍历 ~/Library/Application Support（不限深度）
-        // 借助精准剪枝跳过无关系统/缓存/开发目录，自动校验是否为包含 urls 表的真实 Chromium 历史库
+        // Discover history databases dynamically beneath ~/Library/Application Support.
+        // Prune unrelated system, cache, and development directories; validate each database's urls table.
         let skipDirs: Set<String> = [
             "MobileSync", "Containers", "Group Containers", "Caches", "Developer",
             "Mail", "CloudDocs", "AddressBook", "CallHistoryTransactions", "CrashReporter",
             "FileProvider", "com.apple.sharedfilelist", "Knowledge", "com.apple.TCC",
             "SyncedPreferences", "Quick Look", "Logs", "Saved Application State",
-            // 资源与缓存目录（包含海量无用小文件，永远不会存放 History 数据库）
+            // Resource and cache directories are excluded from history discovery.
             "Cache", "Code Cache", "GPUCache", "DawnCache", "ShaderCache", "blob_storage",
             "IndexedDB", "Service Worker", "extensions", "workspaceStorage", "globalStorage",
             "node_modules", "CachedExtensionVSIXs", "Crashpad", "databases"
@@ -90,9 +90,9 @@ public final class BrowserHistoryScanner: @unchecked Sendable {
         return Array(discoveredSet)
     }
     
-    /// 校验指定路径是否为标准 Chromium 的 History 数据库（包含 urls 表）
-    /// 浏览器运行时会对原库持有写锁，直接打开将返回 SQLITE_BUSY 而被误判为非历史库，
-    /// 因此统一先复制到临时副本再校验，与实际读取路径保持一致。
+    /// Check whether a file is a Chromium history database with a urls table.
+    /// An active browser may hold a write lock, causing direct reads to return SQLITE_BUSY.
+    /// Validate a temporary copy, using the same approach as the history reader.
     private func isChromiumHistoryDB(path: String) -> Bool {
         let fm = FileManager.default
         guard fm.fileExists(atPath: path) else { return false }
@@ -101,7 +101,7 @@ public final class BrowserHistoryScanner: @unchecked Sendable {
         do {
             try fm.copyItem(atPath: path, toPath: tmpCopy)
         } catch {
-            AppLogger.shared.warn("BrowserHistory", "跳过历史库（复制副本失败）: \(path) -> \(error.localizedDescription)")
+            AppLogger.shared.warn("BrowserHistory", "Skipping history database (copy failed): \(path) -> \(error.localizedDescription)")
             return false
         }
         defer { try? fm.removeItem(atPath: tmpCopy) }
@@ -109,7 +109,7 @@ public final class BrowserHistoryScanner: @unchecked Sendable {
         var db: OpaquePointer?
         let openRc = sqlite3_open_v2(tmpCopy, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_NOMUTEX, nil)
         guard openRc == SQLITE_OK else {
-            AppLogger.shared.warn("BrowserHistory", "跳过历史库（副本打开失败 rc=\(openRc)）: \(path)")
+            AppLogger.shared.warn("BrowserHistory", "Skipping history database (failed to open copy, rc=\(openRc)): \(path)")
             sqlite3_close(db)
             return false
         }
@@ -119,25 +119,25 @@ public final class BrowserHistoryScanner: @unchecked Sendable {
         let checkSql = "SELECT 1 FROM sqlite_master WHERE type='table' AND name='urls';"
         let prepareRc = sqlite3_prepare_v2(db, checkSql, -1, &stmt, nil)
         guard prepareRc == SQLITE_OK else {
-            AppLogger.shared.warn("BrowserHistory", "跳过历史库（urls 表校验失败 rc=\(prepareRc)）: \(path)")
+            AppLogger.shared.warn("BrowserHistory", "Skipping history database (invalid urls table, rc=\(prepareRc)): \(path)")
             return false
         }
         defer { sqlite3_finalize(stmt) }
         return sqlite3_step(stmt) == SQLITE_ROW
     }
     
-    // MARK: - 扫描单个 History 数据库
+    // MARK: - Read one history database
     
     private func scanSingleHistoryDB(path: String) -> [(host: String, port: Int, count: Int64)] {
         let fm = FileManager.default
         let tmpDir = NSTemporaryDirectory()
         let tmpCopy = "\(tmpDir)swgbar_history_\(UUID().uuidString).sqlite"
         
-        // 复制文件（浏览器持有锁）
+        // Copy the database to avoid the browser's write lock.
         do {
             try fm.copyItem(atPath: path, toPath: tmpCopy)
         } catch {
-            AppLogger.shared.warn("BrowserHistory", "读取历史库失败（复制副本失败）: \(path) -> \(error.localizedDescription)")
+            AppLogger.shared.warn("BrowserHistory", "Cannot read history database (copy failed): \(path) -> \(error.localizedDescription)")
             return []
         }
         
@@ -148,7 +148,7 @@ public final class BrowserHistoryScanner: @unchecked Sendable {
         var db: OpaquePointer?
         let openRc = sqlite3_open_v2(tmpCopy, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_NOMUTEX, nil)
         guard openRc == SQLITE_OK else {
-            AppLogger.shared.warn("BrowserHistory", "读取历史库失败（副本打开失败 rc=\(openRc)）: \(path)")
+            AppLogger.shared.warn("BrowserHistory", "Cannot read history database (failed to open copy, rc=\(openRc)): \(path)")
             sqlite3_close(db)
             return []
         }
@@ -158,7 +158,7 @@ public final class BrowserHistoryScanner: @unchecked Sendable {
         var stmt: OpaquePointer?
         let prepareRc = sqlite3_prepare_v2(db, sql, -1, &stmt, nil)
         guard prepareRc == SQLITE_OK else {
-            AppLogger.shared.warn("BrowserHistory", "读取历史库失败（查询准备失败 rc=\(prepareRc)）: \(path)")
+            AppLogger.shared.warn("BrowserHistory", "Cannot read history database (query preparation failed, rc=\(prepareRc)): \(path)")
             return []
         }
         defer { sqlite3_finalize(stmt) }
@@ -170,20 +170,20 @@ public final class BrowserHistoryScanner: @unchecked Sendable {
             let urlStr = String(cString: urlCStr)
             let visitCount = sqlite3_column_int64(stmt, 1)
             
-            // 提取主机名与端口
+            // Extract the hostname and port.
             guard let comps = URLComponents(string: urlStr),
                   let host = comps.host?.lowercased(),
                   !host.isEmpty else { continue }
             
             let port = comps.port ?? 443
             
-            // 过滤内网/本机地址
+            // Exclude private and local addresses.
             if isPrivateOrLocal(host) { continue }
             
             entries.append((host: host, port: port, count: visitCount))
         }
         
-        // 聚合同一 (host, port)
+        // Aggregate by (host, port).
         var targetCounts: [HistoryKey: Int64] = [:]
         for entry in entries {
             let key = HistoryKey(host: entry.host, port: entry.port)
@@ -193,13 +193,13 @@ public final class BrowserHistoryScanner: @unchecked Sendable {
         return targetCounts.map { ($0.key.host, $0.key.port, $0.value) }
     }
     
-    // MARK: - 过滤内网地址
+    // MARK: - Exclude private addresses
     
     private func isPrivateOrLocal(_ host: String) -> Bool {
         if host == "localhost" || host.hasSuffix(".local") || host.hasSuffix(".localhost") {
             return true
         }
-        // IPv4 私有地址段
+        // Private IPv4 address ranges
         if host.hasPrefix("10.") || host.hasPrefix("192.168.") || host.hasPrefix("172.") {
             if host.hasPrefix("172.") {
                 let parts = host.split(separator: ".")

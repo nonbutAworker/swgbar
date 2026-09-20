@@ -1,7 +1,7 @@
 //
-// SWGBar / macOS 菜单栏 TLS 检查检测器
-// CA 详情：证书信息、信任路径与影响域展示 (CADetailView.swift)
-// 严格对齐 Chrome 证书查看器基本信息规范与现代化 macOS 卡片化视觉设计
+// SWGBar / macOS menu bar TLS inspection detector
+// CA details: certificate identity, trust paths, and affected domains (CADetailView.swift)
+// Present certificate fields in a familiar browser-style layout with native macOS cards.
 //
 
 import SwiftUI
@@ -27,7 +27,7 @@ public struct CADetailView: View {
                 }) {
                     HStack(spacing: 4) {
                         Image(systemName: "chevron.backward")
-                        Text("返回证书列表")
+                        Text("Back to certificates")
                     }
                     .font(UITheme.subFont)
                     .foregroundColor(.secondary)
@@ -35,7 +35,7 @@ public struct CADetailView: View {
                 .buttonStyle(.plain)
                 
                 Spacer()
-                Text("未找到该证书簇信息")
+                Text("Certificate cluster not found")
                     .font(UITheme.bodyFont)
                     .foregroundColor(.secondary)
                 Spacer()
@@ -47,7 +47,7 @@ public struct CADetailView: View {
     private func caContent(ca: CADetail) -> some View {
         ScrollView(.vertical, showsIndicators: true) {
             VStack(alignment: .leading, spacing: 12) {
-                // 顶部返回导航
+                // Back navigation
                 HStack {
                     Button(action: {
                         vm.selectedCAClusterId = nil
@@ -55,7 +55,7 @@ public struct CADetailView: View {
                         HStack(spacing: 4) {
                             Image(systemName: "chevron.backward")
                                 .font(.system(size: 11, weight: .medium))
-                            Text("返回证书列表")
+                            Text("Back to certificates")
                                 .font(UITheme.subFont)
                         }
                         .foregroundColor(.secondary)
@@ -70,7 +70,7 @@ public struct CADetailView: View {
                 }
                 .padding(.top, 2)
                 
-                // CA 核心信息看板 (Hero Banner)
+                // CA identity summary
                 HStack(alignment: .center, spacing: 10) {
                     Image(systemName: caIconName(for: ca.identityKind))
                         .font(.system(size: 22))
@@ -80,14 +80,14 @@ public struct CADetailView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                     
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(ca.subjectElements.cn != "<未包含在证书中>" ? ca.subjectElements.cn : ca.caName)
+                        Text(ca.subjectElements.cn != "<Not present in certificate>" ? ca.subjectElements.cn : ca.caName)
                             .font(.system(size: 15, weight: .bold))
                             .foregroundColor(.primary)
                             .lineLimit(1)
                             .truncationMode(.middle)
                         
                         HStack(spacing: 6) {
-                            Text("已关联 \(ca.affectedDomainsCount) 个域名")
+                            Text("\(ca.affectedDomainsCount) associated domains")
                                 .font(UITheme.subFont)
                                 .foregroundColor(.secondary)
                         }
@@ -104,7 +104,7 @@ public struct CADetailView: View {
                             .liquidGlassPill(tintColor: UITheme.color(for: ca.identityKind))
                         
                         if ca.hasUserAssertion {
-                            Text("含用户标注")
+                            Text("Includes user labels")
                                 .font(.system(size: 9, weight: .medium))
                                 .foregroundColor(.orange)
                                 .padding(.horizontal, 5)
@@ -117,78 +117,78 @@ public struct CADetailView: View {
                 .padding(12)
                 .liquidGlassCard(cornerRadius: 12)
                 
-                // 分类 1: 颁发对象 (Chrome 标准)
+                // Section 1: Issued to
                 VStack(alignment: .leading, spacing: 8) {
-                    sectionHeader(icon: "person.crop.square", title: "颁发对象")
+                    sectionHeader(icon: "person.crop.square", title: "Issued to")
                     
                     VStack(spacing: 8) {
                         let sub = ca.subjectElements
-                        chromeRow(label: "公用名 (CN)", value: sub.cn, canCopy: true)
+                        chromeRow(label: "Common name (CN)", value: sub.cn, canCopy: true)
                         Divider().opacity(0.4)
-                        chromeRow(label: "组织 (O)", value: sub.o)
+                        chromeRow(label: "Organization (O)", value: sub.o)
                         Divider().opacity(0.4)
-                        chromeRow(label: "组织单位 (OU)", value: sub.ou)
+                        chromeRow(label: "Organizational unit (OU)", value: sub.ou)
                     }
                     .padding(12)
                     .liquidGlassCard(cornerRadius: 12)
                 }
                 
-                // 分类 2: 颁发者 (Chrome 标准)
+                // Section 2: Issued by
                 VStack(alignment: .leading, spacing: 8) {
-                    sectionHeader(icon: "building.2", title: "颁发者")
+                    sectionHeader(icon: "building.2", title: "Issued by")
                     
                     VStack(spacing: 8) {
                         let iss = ca.issuerElements
-                        chromeRow(label: "公用名 (CN)", value: iss.cn, canCopy: true)
+                        chromeRow(label: "Common name (CN)", value: iss.cn, canCopy: true)
                         Divider().opacity(0.4)
-                        chromeRow(label: "组织 (O)", value: iss.o)
+                        chromeRow(label: "Organization (O)", value: iss.o)
                         Divider().opacity(0.4)
-                        chromeRow(label: "组织单位 (OU)", value: iss.ou)
+                        chromeRow(label: "Organizational unit (OU)", value: iss.ou)
                     }
                     .padding(12)
                     .liquidGlassCard(cornerRadius: 12)
                 }
                 
-                // 分类 3: 有效期 (Chrome 标准)
+                // Section 3: Validity
                 VStack(alignment: .leading, spacing: 8) {
-                    sectionHeader(icon: "calendar", title: "有效期")
+                    sectionHeader(icon: "calendar", title: "Validity")
                     
                     VStack(spacing: 8) {
-                        chromeRow(label: "颁发日期", value: ca.notBeforeFormatted)
+                        chromeRow(label: "Valid from", value: ca.notBeforeFormatted)
                         Divider().opacity(0.4)
-                        chromeRow(label: "截止日期", value: ca.notAfterFormatted)
+                        chromeRow(label: "Valid until", value: ca.notAfterFormatted)
                     }
                     .padding(12)
                     .liquidGlassCard(cornerRadius: 12)
                 }
                 
-                // 分类 4: SHA-256 指纹 (Chrome 标准)
+                // Section 4: SHA-256 fingerprints
                 VStack(alignment: .leading, spacing: 8) {
-                    sectionHeader(icon: "key", title: "SHA-256 指纹")
+                    sectionHeader(icon: "key", title: "SHA-256 fingerprints")
                     
                     VStack(spacing: 8) {
-                        fingerprintRow(label: "证书", value: ca.certSha256)
+                        fingerprintRow(label: "Certificate", value: ca.certSha256)
                         Divider().opacity(0.4)
-                        fingerprintRow(label: "公钥", value: ca.spkiSha256)
+                        fingerprintRow(label: "Public key", value: ca.spkiSha256)
                     }
                     .padding(12)
                     .liquidGlassCard(cornerRadius: 12)
                 }
                 
-                // 分类 5: 证书与信任（与域名详情保持一致的文案）
+                // Section 5: Certificate and trust, using the same terminology as domain details
                 VStack(alignment: .leading, spacing: 8) {
-                    sectionHeader(icon: "lock.shield", title: "证书与信任")
+                    sectionHeader(icon: "lock.shield", title: "Certificate and trust")
                     
                     VStack(alignment: .leading, spacing: 10) {
                         let isPublicPassed: Bool = {
                             if ca.identityKind == "public" { return true }
                             if ca.identityKind == "inspection" || ca.identityKind == "suspected" { return false }
-                            return ca.baselineStatus.contains("公共") && !ca.baselineStatus.contains("未建立")
+                            return ca.baselineStatus.contains("Public") && !ca.baselineStatus.contains("not established")
                         }()
                         let isSystemTrustPassed: Bool = (ca.identityKind != "unknown")
                         
                         HStack {
-                            Text("本机系统验证")
+                            Text("System trust")
                                 .font(UITheme.subFont)
                                 .foregroundColor(.secondary)
                                 .frame(width: 105, alignment: .leading)
@@ -212,7 +212,7 @@ public struct CADetailView: View {
                         Divider().opacity(0.4)
                         
                         HStack {
-                            Text("公网权威验证")
+                            Text("Public PKI")
                                 .font(UITheme.subFont)
                                 .foregroundColor(.secondary)
                                 .frame(width: 105, alignment: .leading)
@@ -237,18 +237,18 @@ public struct CADetailView: View {
                     .liquidGlassCard(cornerRadius: 12)
                 }
                 
-                // 分类 6: 影响域 (独立分类)
+                // Section 6: Affected domains
                 VStack(alignment: .leading, spacing: 8) {
-                    sectionHeader(icon: "globe", title: "影响域")
+                    sectionHeader(icon: "globe", title: "Affected domains")
                     
                     VStack(alignment: .leading, spacing: 10) {
                         HStack {
-                            Text("关联域名")
+                            Text("Associated domains")
                                 .font(UITheme.subFont)
                                 .foregroundColor(.secondary)
                                 .frame(width: 105, alignment: .leading)
                             
-                            Text("\(ca.affectedDomainsCount) 个域名")
+                            Text("\(ca.affectedDomainsCount) domains")
                                 .font(UITheme.subBoldFont)
                                 .foregroundColor(.primary)
                                 .padding(.horizontal, 6)
@@ -268,7 +268,7 @@ public struct CADetailView: View {
                                 isDomainListExpanded.toggle()
                             }) {
                                 HStack(spacing: 6) {
-                                    Text("详细域名 (\(domains.count))")
+                                    Text("Domain details (\(domains.count))")
                                         .font(UITheme.subFont)
                                         .foregroundColor(.secondary)
                                     
@@ -282,7 +282,7 @@ public struct CADetailView: View {
                                 .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
-                            .help(isDomainListExpanded ? "收起详细域名" : "展开详细域名")
+                            .help(isDomainListExpanded ? "Hide domain details" : "Show domain details")
                             
                             if isDomainListExpanded {
                                 ScrollView(.vertical, showsIndicators: true) {
@@ -299,7 +299,7 @@ public struct CADetailView: View {
                                                 
                                                 Spacer()
                                                 
-                                                CopyButton(text: domain, tooltip: "复制域名", size: 9, padding: 3)
+                                                CopyButton(text: domain, tooltip: "Copy hostname", size: 9, padding: 3)
                                             }
                                             .padding(.horizontal, 8)
                                             .padding(.vertical, 4)
@@ -316,10 +316,10 @@ public struct CADetailView: View {
                     .liquidGlassCard(cornerRadius: 12)
                 }
                 
-                // 只读底部提示
+                // Read-only notice
                 HStack {
                     Spacer()
-                    Text("所有证书数据均提取自本地钥匙串与网络证据流 · 仅供只读分析")
+                    Text("Certificate data comes from local keychains and network evidence. Read-only analysis.")
                         .font(.system(size: 10))
                         .foregroundColor(.secondary.opacity(0.6))
                     Spacer()
@@ -332,7 +332,7 @@ public struct CADetailView: View {
         }
     }
     
-    // MARK: - 辅助子视图组件
+    // MARK: - Supporting view components
     
     private func sectionHeader(icon: String, title: String) -> some View {
         HStack(spacing: 5) {
@@ -354,8 +354,8 @@ public struct CADetailView: View {
                 .foregroundColor(.secondary)
                 .frame(width: 105, alignment: .leading)
             
-            let isMissing = value == "<未包含在证书中>" || value.isEmpty
-            Text(isMissing ? "<未包含在证书中>" : value)
+            let isMissing = value == "<Not present in certificate>" || value.isEmpty
+            Text(isMissing ? "<Not present in certificate>" : value)
                 .font(UITheme.subFont)
                 .foregroundColor(isMissing ? .secondary.opacity(0.8) : .primary)
                 .lineLimit(3)
@@ -363,7 +363,7 @@ public struct CADetailView: View {
             Spacer()
             
             if canCopy && !isMissing {
-                CopyButton(text: value, tooltip: "复制 \(label)")
+                CopyButton(text: value, tooltip: "Copy \(label)")
             }
         }
     }
@@ -375,9 +375,9 @@ public struct CADetailView: View {
                 .foregroundColor(.secondary)
                 .frame(width: 105, alignment: .leading)
             
-            let isMissing = value.isEmpty || value == "<未包含在证书中>"
+            let isMissing = value.isEmpty || value == "<Not present in certificate>"
             if isMissing {
-                Text("<未包含在证书中>")
+                Text("<Not present in certificate>")
                     .font(UITheme.subFont)
                     .foregroundColor(.secondary.opacity(0.8))
             } else {
@@ -391,17 +391,17 @@ public struct CADetailView: View {
             Spacer()
             
             if !isMissing {
-                CopyButton(text: value, tooltip: "复制完整指纹")
+                CopyButton(text: value, tooltip: "Copy full fingerprint")
             }
         }
     }
     
     private func caStatusTitle(for kind: String) -> String {
         switch kind {
-        case "inspection": return "确认"
-        case "suspected": return "疑似"
-        case "public": return "公共"
-        default: return "未知"
+        case "inspection": return "Confirmed"
+        case "suspected": return "Suspected"
+        case "public": return "Public"
+        default: return "Unknown"
         }
     }
     

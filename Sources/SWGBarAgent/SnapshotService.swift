@@ -1,7 +1,7 @@
 //
-// SWGBar / macOS 菜单栏 TLS 检查检测器
-// 快照与视图查询服务 (SnapshotService.swift)
-// 遵循技术方案 v1.1 第 05, 17-24, 28 章：包含真实数据聚合与官方规范演示数据
+// SWGBar / macOS menu bar TLS inspection detector
+// Snapshot and view query service (SnapshotService.swift)
+// Aggregate live data and provide a deterministic demonstration snapshot.
 //
 
 import Foundation
@@ -15,7 +15,7 @@ public final class SnapshotService: @unchecked Sendable {
         self.repository = repository
     }
 
-    // MARK: - 总览快照 (OverviewSnapshot)
+    // MARK: - Overview snapshot (OverviewSnapshot)
 
     public func getOverviewSnapshot(
         metricKind: String = "probe_domain",
@@ -32,7 +32,7 @@ public final class SnapshotService: @unchecked Sendable {
             let rules = try repository.listRules()
             let userRulesCount = rules.filter { $0.origin == "user" && $0.kind == "inspection_ca" }.count
 
-            // 默认展示5个，排序和“证书”列表页面保持完全一致 (确认 -> 疑似 -> 公共 -> 预期，内部按域名数倒序)
+            // Show five clusters using the certificate list's status order, then descending domain count.
             var topClusters: [CAClusterSummary] = []
             let allCAs = listCAClusters(showAll: true)
             for ca in allCAs.prefix(5) {
@@ -71,12 +71,12 @@ public final class SnapshotService: @unchecked Sendable {
         }
     }
 
-    // 生成技术方案 v1.1 5.2 节完全一致的统一样例数据
+    // Generate the common demonstration fixture.
     public func generateDemoSnapshot(metricKind: String, epochId: String, windowSeconds: Int, collectorState: CollectorState = .running) -> OverviewSnapshot {
         let nowMs = Int64(Date().timeIntervalSince1970 * 1000)
         let windowStart = nowMs - Int64(windowSeconds * 1000)
 
-        // 统一样例：C=100, S=50, P=600, E=50, U=200; N=1000, K=800
+        // Fixture: C=100, S=50, P=600, E=50, U=200; N=1000, K=800.
         let counts = MetricCounts(
             confirmed: 100,
             suspected: 50,
@@ -129,7 +129,7 @@ public final class SnapshotService: @unchecked Sendable {
             partialReasons: [],
             ruleRevision: 1,
             baselineVersion: "2026.09.17",
-            userAssertedConfirmed: 1, // 图 17-1：含用户标注
+            userAssertedConfirmed: 1, // Includes a user-provided label.
             topClusters: topClusters,
             lastEvidenceAt: nowMs - 20000,
             lastSuccessAt: nowMs - 20000,
@@ -137,7 +137,7 @@ public final class SnapshotService: @unchecked Sendable {
         )
     }
 
-    // MARK: - 域名列表 (domains.list)
+    // MARK: - Domain list (domains.list)
 
     public func listDomains(
         search: String = "",
@@ -151,7 +151,7 @@ public final class SnapshotService: @unchecked Sendable {
         guard let liveRows = try? repository.listTargetsWithLatestVerdict(limit: 5000, sortByRequestCount: sortByCount) else {
             return []
         }
-        // 通过 CA 聚类唯一标识命中证书 Tab 的同一条记录，名称和状态均取自该记录。
+        // Resolve the certificate tab's cluster by its unique ID and reuse its display name and status.
         let certificatesByClusterId = Dictionary(uniqueKeysWithValues:
             listCAClusters(showAll: true).map { ($0.clusterId, $0) }
         )
@@ -191,7 +191,7 @@ public final class SnapshotService: @unchecked Sendable {
                 (row.certificateSummary ?? "").localizedCaseInsensitiveContains(certFilter)
             }
         }
-        // 客户端排序（NAME / STATUS 模式）
+        // Sort NAME and STATUS modes in memory.
         switch sort {
         case "NAME":
             filtered.sort { $0.hostname < $1.hostname }
@@ -199,12 +199,12 @@ public final class SnapshotService: @unchecked Sendable {
             let order: [Verdict: Int] = [.confirmedInspection: 0, .suspectedInspection: 1, .unknown: 2, .expectedPrivate: 3, .publicPath: 4, .excluded: 5]
             filtered.sort { (order[$0.verdict] ?? 9) < (order[$1.verdict] ?? 9) }
         default:
-            break // RECENT 和 REQUEST_COUNT 已在 SQL 层排序
+            break // RECENT and REQUEST_COUNT are already sorted by SQL.
         }
         return filtered
     }
 
-    /// 连接方式展示：统一使用标准英文标识（DIRECT / HTTP_CONNECT），无记录时显示占位符
+    /// Display the standard DIRECT or HTTP_CONNECT identifier, or a placeholder when unavailable.
     static func routeDisplayName(_ routeType: String?) -> String {
         guard let raw = routeType?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else {
             return "—"
@@ -212,41 +212,41 @@ public final class SnapshotService: @unchecked Sendable {
         return raw.uppercased()
     }
 
-    // MARK: - 域名详情 (domains.get, 图 19-1)
+    // MARK: - Domain details (domains.get)
 
     public func getDomainDetail(targetId: String) -> DomainDetail {
         if let info = try? repository.getTargetDetailInfo(targetId: targetId) {
             let observedDate = Date(timeIntervalSince1970: Double(info.lastObservedMs) / 1000.0)
 
-            // 最近观察时间取自该目标最新一条观测的 observed_at_ms，跨天时保留日期避免歧义
+            // Use the latest observation timestamp and include the date to distinguish different days.
             let fullDf = DateFormatter()
-            fullDf.locale = Locale(identifier: "zh_CN")
+            fullDf.locale = Locale(identifier: "en_US_POSIX")
             fullDf.dateFormat = "yyyy-MM-dd HH:mm:ss"
             let lastObservedStr = info.lastObservedMs > 0 ? fullDf.string(from: observedDate) : "—"
 
             let desc: String
             switch info.verdict {
             case .confirmedInspection:
-                desc = "命中企业自签/拦截根证书与系统信任设置；已确认存在 TLS 检查中间代理。"
+                desc = "The certificate and local trust settings match a registered inspection identity. TLS inspection is confirmed for this probe."
             case .suspectedInspection:
-                desc = "有效的额外私有信任路径在多个公共目标复现；尚未确认检查身份的具体运营者。"
+                desc = "An additional private trust path appears across multiple public targets. The inspection operator has not been confirmed."
             case .publicPath:
-                desc = "目标通过公共标准 PKI 验证；未发现中间人拦截或私有证书劫持。"
+                desc = "This probe passed public PKI validation. No private inspection path was identified."
             case .expectedPrivate:
-                desc = "命中预期私有信任规则；符合受管内网环境预期。"
+                desc = "This target matches an expected private trust rule."
             case .unknown:
                 desc = info.reason
             case .excluded:
-                desc = "根据用户/系统规则已从检查监控中排除。"
+                desc = "Excluded from monitoring by a user or system rule."
             }
 
             let extraPath: String
             if let ca = info.caName, !ca.isEmpty {
-                extraPath = "成立 · \(ca)"
+                extraPath = "Established: \(ca)"
             } else if info.verdict == .publicPath {
-                extraPath = "未引入额外信任（标准系统根证书）"
+                extraPath = "No additional trust (standard system roots)"
             } else {
-                extraPath = "尚未捕获完整证书链"
+                extraPath = "A complete certificate chain has not been captured"
             }
 
             return DomainDetail(
@@ -257,11 +257,11 @@ public final class SnapshotService: @unchecked Sendable {
                 verdictDescription: desc,
                 evidenceSource: info.source,
                 lastObservedFormatted: lastObservedStr,
-                endpointAddress: info.remoteIp != nil ? "\(info.remoteIp!) : \(info.port)" : "本机出站连接",
+                endpointAddress: info.remoteIp != nil ? "\(info.remoteIp!) : \(info.port)" : "Local outbound connection",
                 routingSummary: Self.routeDisplayName(info.routeType),
                 egressInterface: (info.egressInterface?.isEmpty == false) ? info.egressInterface! : "—",
-                handshakeStatus: info.verdict == .unknown ? "未探测或等待中" : "已完成",
-                baselineVerdict: info.verdict == .publicPath ? "公共路径已建立" : "无法建立公共路径",
+                handshakeStatus: info.verdict == .unknown ? "Not probed or pending" : "Complete",
+                baselineVerdict: info.verdict == .publicPath ? "Public path established" : "Public path not established",
                 extraTrustPath: extraPath,
                 caClusterName: info.caName,
                 caClusterId: info.caClusterId,
@@ -274,28 +274,28 @@ public final class SnapshotService: @unchecked Sendable {
             hostname: "unknown.domain",
             port: 443,
             verdict: .unknown,
-            verdictDescription: "未找到该目标的历史记录",
+            verdictDescription: "No history was found for this target",
             evidenceSource: .nativeProbe,
             lastObservedFormatted: "—",
             endpointAddress: "--",
             routingSummary: "—",
             egressInterface: "—",
-            handshakeStatus: "未完成",
-            baselineVerdict: "未知",
-            extraTrustPath: "无",
+            handshakeStatus: "Incomplete",
+            baselineVerdict: "Unknown",
+            extraTrustPath: "None",
             caClusterName: nil,
             caClusterId: nil,
             requestCount: 0
         )
     }
 
-    // MARK: - CA 聚类列表与详情 (clusters.list, clusters.get, 图 20-1, 21-1)
+    // MARK: - CA cluster lists and details (clusters.list, clusters.get)
 
     public func listCAClusters(showAll: Bool = true, forceRefresh: Bool = false) -> [CADetail] {
         var allCAs: [CADetail] = []
         var seen = Set<String>()
 
-        // 1. 优先提取数据库中已产生真实网络流的 CA 聚类（包括 CN=swg Intermedia CA）
+        // 1. Load CA clusters observed in real network evidence from the database.
         if let dbClusters = try? repository.listCAClusters(), !dbClusters.isEmpty {
             for ca in dbClusters {
                 if !seen.contains(ca.caName) {
@@ -305,7 +305,7 @@ public final class SnapshotService: @unchecked Sendable {
             }
         }
 
-        // 2. 补充本地 Keychain 中的根证书（带内存缓存，避免重复 IPC）
+        // 2. Add local keychain roots, using the cache to avoid repeated IPC.
         let realCAs = NativeTrustEvaluator.shared.extractAllInstalledExtraTrustCAs(forceRefresh: forceRefresh)
         for ca in realCAs {
             if !seen.contains(ca.caName) {
@@ -314,8 +314,8 @@ public final class SnapshotService: @unchecked Sendable {
             }
         }
 
-        // 排序规则：先按 确认(inspection) -> 疑似(suspected) -> 公共(public)
-        // 状态内部再按关联的域名数量从高到低排序 (affectedDomainsCount DESC)
+        // Order by confirmed inspection, suspected inspection, then public trust.
+        // Within each status, sort by affectedDomainsCount in descending order.
         func statusRank(_ kind: String) -> Int {
             switch kind {
             case "inspection": return 0
@@ -344,7 +344,7 @@ public final class SnapshotService: @unchecked Sendable {
         return (try? repository.listHostnamesForCA(clusterId: clusterId, spki: spki, caName: caName)) ?? []
     }
 
-    // MARK: - 时间线记录 (events.list, 图 22-1)
+    // MARK: - Timeline events (events.list)
 
     public func listTimelineEvents(onlyChanges: Bool = false) -> [TimelineEvent] {
         if let liveEvents = try? repository.listEvents(limit: 50) {

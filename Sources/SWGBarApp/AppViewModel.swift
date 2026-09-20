@@ -1,7 +1,7 @@
 //
-// SWGBar / macOS 菜单栏 TLS 检查检测器
-// 界面视图模型 (AppViewModel.swift)
-// 遵循技术方案 v1.1 第 15-28 章：版本化不可变快照消费、内联导航与各 Tab 交互
+// SWGBar / macOS menu bar TLS inspection detector
+// Application view model (AppViewModel.swift)
+// Consume versioned snapshots and coordinate inline navigation and tab interactions.
 //
 
 import SwiftUI
@@ -12,22 +12,22 @@ import SWGBarStorage
 
 @MainActor
 public final class AppViewModel: ObservableObject {
-    // MARK: - 导航与状态
-    @Published public var selectedTab: Int = 0 // 0: 总览, 1: 域名, 2: 证书
+    // MARK: - Navigation and state
+    @Published public var selectedTab: Int = 0 // 0: Overview, 1: Domains, 2: Certificates
 
-    @Published public var showingOnboarding: Bool = false // 图 16-1 首次授权
+    @Published public var showingOnboarding: Bool = false // Initial permission flow
     
-    // 内联导航 (不创建第二窗口，第 15.1 章)
-    @Published public var selectedDomainId: String? = nil // 进入域名详情 DD01-DD11
-    @Published public var selectedCAClusterId: String? = nil // 进入 CA 详情 CD01-CD10
+    // Inline navigation without opening another window
+    @Published public var selectedDomainId: String? = nil // Selected domain details (DD01-DD11)
+    @Published public var selectedCAClusterId: String? = nil // Selected CA details (CD01-CD10)
     
-    // MARK: - 总览快照与状态
+    // MARK: - Overview snapshot and state
     @Published public var snapshot: OverviewSnapshot
     
-    // 域名 Tab 状态
+    // Domains tab state
     @Published public var domainSearchText: String = "" // D01
     @Published public var domainStatusFilter: String = "ALL" // D02
-    @Published public var domainCertFilter: String = "ALL" // 证书过滤器
+    @Published public var domainCertFilter: String = "ALL" // Certificate filter
     @Published public var availableCertOptions: [CertFilterOption] = []
     @Published public var domainSourceFilter: String = "ALL"
     @Published public var domainAppFilter: String = "ALL"
@@ -35,19 +35,19 @@ public final class AppViewModel: ObservableObject {
     @Published public var domainRows: [DomainRow] = []
     private var cachedAllDomains: [DomainRow] = []
     
-    // 分页机制（提升上千条域名的滚动与搜索渲染性能）
+    // Pagination keeps large domain lists responsive during scrolling and search.
     public let domainPageSize: Int = 50
     @Published public var displayedDomainLimit: Int = 50
     @Published public var displayedDomainRows: [DomainRow] = []
     
-    /// 同步复合过滤（按域名搜索 AND 按证书搜索，零延迟纯内存计算）
+    /// Combine hostname search and certificate filtering synchronously in memory.
     public func applyCombinedDomainFilter(preserveLimit: Bool = false) {
         let domainQuery = domainSearchText.trimmingCharacters(in: .whitespaces).lowercased()
         let certFilter = domainCertFilter.trimmingCharacters(in: .whitespaces)
         
         var results = cachedAllDomains
         
-        // 1. 域名搜索条件 (独立过滤)
+        // 1. Apply the hostname search independently.
         if !domainQuery.isEmpty {
             results = results.filter { row in
                 row.hostname.lowercased().contains(domainQuery) ||
@@ -55,7 +55,7 @@ public final class AppViewModel: ObservableObject {
             }
         }
         
-        // 2. 证书筛选条件 (独立过滤，与域名搜索是“并且”关系)
+        // 2. Combine the certificate filter with the hostname search using AND.
         if certFilter != "ALL" && !certFilter.isEmpty {
             results = results.filter { row in
                 row.formattedCertSummary == certFilter ||
@@ -72,40 +72,40 @@ public final class AppViewModel: ObservableObject {
         self.displayedDomainRows = Array(results.prefix(self.displayedDomainLimit))
     }
     
-    /// 触底自动追加下一页域名数据
+    /// Append the next page when scrolling reaches the end.
     public func loadMoreDomainsIfNeeded() {
         guard displayedDomainLimit < domainRows.count else { return }
         displayedDomainLimit = min(displayedDomainLimit + domainPageSize, domainRows.count)
         displayedDomainRows = Array(domainRows.prefix(displayedDomainLimit))
     }
     
-    /// 即时切换证书过滤项（独立触发，保持与当前域名搜索条件的“并且”组合）
+    /// Apply a certificate filter immediately while preserving the hostname search.
     public func applyDomainCertFilter(_ filterValue: String) {
         self.domainCertFilter = filterValue
         applyCombinedDomainFilter()
     }
     
-    /// 一键重置域名与证书全部筛选条件
+    /// Reset hostname and certificate filters together.
     public func resetDomainFilters() {
         self.domainSearchText = ""
         self.domainCertFilter = "ALL"
         applyCombinedDomainFilter()
     }
     
-    // 证书 Tab 状态
+    // Certificates tab state
     @Published public var showAllCAs: Bool = true
-    @Published public var caSearchText: String = "" // 按 CA 名称搜索
-    @Published public var caStatusFilter: String = "ALL" // 按状态筛选：ALL / inspection / suspected / public
+    @Published public var caSearchText: String = "" // Search by CA name
+    @Published public var caStatusFilter: String = "ALL" // Filter by status: ALL / inspection / suspected / public
     @Published public var caClusters: [CADetail] = []
     @Published public var displayedCAClusters: [CADetail] = []
     @Published public var caStatusCounts: [String: Int] = [:]
     
-    /// 同步复合过滤（按 CA 名称搜索 AND 按证书状态筛选，零延迟纯内存计算）
+    /// Combine CA name search and status filtering synchronously in memory.
     public func applyCombinedCAFilter() {
         let nameQuery = caSearchText.trimmingCharacters(in: .whitespaces).lowercased()
         let statusFilter = caStatusFilter
         
-        // 预先计算各类别的计数字典，供 popover O(1) 立即取用，消除视图帧重复遍历
+        // Precompute counts by status so the popover can read them without repeatedly traversing the list.
         var counts: [String: Int] = ["ALL": caClusters.count]
         for ca in caClusters {
             counts[ca.identityKind, default: 0] += 1
@@ -114,21 +114,21 @@ public final class AppViewModel: ObservableObject {
         
         var results = caClusters
         
-        // 1. 仅按 CA 名称搜索 (独立过滤)
+        // 1. Search by CA name independently.
         if !nameQuery.isEmpty {
             results = results.filter { ca in
                 ca.caName.lowercased().contains(nameQuery)
             }
         }
         
-        // 2. 按状态搜索/筛选 (与 CA 名称搜索是“且”的关系)
+        // 2. Combine the status filter with the CA name search using AND.
         if statusFilter != "ALL" && !statusFilter.isEmpty {
             results = results.filter { ca in
                 ca.identityKind == statusFilter
             }
         }
         
-        // 3. 排序：先按 确认(inspection) -> 疑似(suspected) -> 公共(public)，内部再按关联域名数量降序
+        // 3. Sort by inspection, suspected, then public status; break ties by descending domain count.
         func statusRank(_ kind: String) -> Int {
             switch kind {
             case "inspection": return 0
@@ -153,13 +153,13 @@ public final class AppViewModel: ObservableObject {
         self.displayedCAClusters = results
     }
 
-    /// 即时切换证书状态过滤项（零延迟，立即计算并展示）
+    /// Apply the certificate status filter and refresh its results immediately.
     public func applyCAStatusFilter(_ filterValue: String) {
         self.caStatusFilter = filterValue
         applyCombinedCAFilter()
     }
     
-    // 面板激活状态（感知窗口是否打开，面板关闭时仅运行轻量级菜单栏快照）
+    // Track panel visibility; use lightweight menu bar snapshots when closed.
     @Published public var isPanelOpen: Bool = false {
         didSet {
             if isPanelOpen != oldValue {
@@ -171,7 +171,7 @@ public final class AppViewModel: ObservableObject {
         }
     }
     
-    // 状态反馈与操作
+    // Operation feedback and notifications
     @Published public var configuration: Configuration = Configuration()
     @Published public var notificationToast: String? = nil
     @Published public var isProbing: Bool = false
@@ -184,7 +184,7 @@ public final class AppViewModel: ObservableObject {
         self.agent = agent
         self.snapshot = agent.snapshotService.getOverviewSnapshot()
         
-        // 订阅实时数据变动通知 (经 500ms 防抖合并高频网络并发，避免 UI 刷新风暴)
+        // Debounce data-change notifications for 500 ms to coalesce concurrent network updates.
         NotificationCenter.default.publisher(for: .swgBarDataChanged)
             .receive(on: RunLoop.main)
             .debounce(for: .milliseconds(500), scheduler: RunLoop.main)
@@ -205,7 +205,7 @@ public final class AppViewModel: ObservableObject {
         startPeriodicRefresh()
     }
     
-    /// 自适应刷新定时器：面板关闭时 15 秒极低频快照；面板打开时 3 秒高频刷新
+    /// Refresh every 15 seconds while closed, or every three seconds while the panel is open.
     private func startPeriodicRefresh() {
         refreshTimer?.invalidate()
         let interval: TimeInterval = isPanelOpen ? 3.0 : 15.0
@@ -221,28 +221,28 @@ public final class AppViewModel: ObservableObject {
         }
     }
     
-    /// 菜单栏极速快照刷新（<1ms，仅刷新顶栏 MITM XX% 与盾牌颜色，不加载大列表）
+    /// Refresh only the menu bar percentage and status color without loading large lists.
     public func refreshMenuSnapshot() {
         Task {
             self.snapshot = await agent.getOverviewSnapshot()
         }
     }
     
-    /// 当前激活 Tab 的按需局部刷新
+    /// Refresh data for the active tab on demand.
     public func refreshCurrentTabData() {
         Task {
             self.snapshot = await agent.getOverviewSnapshot()
             
-            // 只有当面板处于展开状态时，才按需加载当前 Tab 所需的视图数据
+            // Load tab-specific data only while the panel is open.
             guard isPanelOpen else { return }
             
             switch selectedTab {
             case 0:
-                // 总览 Tab：仅需要 snapshot，无需加载数千条域名明细
+                // Overview needs only the snapshot, not the full domain list.
                 break
                 
             case 1:
-                // 域名 Tab：按需加载全量域名至内存缓存，由客户端实现0延迟独立及复合过滤
+                // Cache domain rows in memory for independent and combined filtering.
                 let allRows = await agent.listDomains(
                     search: "",
                     statusFilter: domainStatusFilter,
@@ -260,14 +260,14 @@ public final class AppViewModel: ObservableObject {
                     }
                     let sortedOpts = counts.map { CertFilterOption(displayName: $0.key, filterValue: $0.key, count: $0.value) }
                         .sorted { $0.count > $1.count }
-                    self.availableCertOptions = [CertFilterOption(displayName: "全部证书", filterValue: "ALL", count: allRows.count)] + sortedOpts
+                    self.availableCertOptions = [CertFilterOption(displayName: "All certificates", filterValue: "ALL", count: allRows.count)] + sortedOpts
                     
-                    // 统一应用复合过滤 (域名搜索 AND 证书过滤，保持当前已滚动的分页深度)
+                    // Combine hostname and certificate filters while preserving the current pagination depth.
                     self.applyCombinedDomainFilter(preserveLimit: true)
                 }
                 
             case 2:
-                // 证书 Tab：加载全量证书聚类（单页聚合，不再区分子 Tab）
+                // Load the complete certificate cluster list for the certificates tab.
                 let clusters = await agent.listCAClusters(showAll: true)
                 if self.caClusters != clusters || self.displayedCAClusters.isEmpty {
                     self.caClusters = clusters
@@ -288,7 +288,7 @@ public final class AppViewModel: ObservableObject {
         return agent.snapshotService.getDomainDetail(targetId: targetId)
     }
     
-    /// 跳转到指定证书的详情页：先确保证书列表已加载，避免因数据未就绪而回退到首条证书
+    /// Load the certificate list before navigating to a cluster, avoiding a fallback to the first row.
     public func openCertificateDetail(clusterId: String) {
         selectedDomainId = nil
         selectedTab = 2
@@ -310,9 +310,9 @@ public final class AppViewModel: ObservableObject {
         return agent.snapshotService.listHostnamesForCA(clusterId: ca.clusterId, spki: ca.spkiSha256, caName: ca.caName)
     }
     
-    // MARK: - 交互操作映射 (G/O/D/DD/C/CD/H/S)
+    // MARK: - UI operations (G/O/D/DD/C/CD/H/S)
     
-    // G04/G05/O10: 暂停与恢复监测
+    // G04/G05/O10: Pause and resume monitoring
     public func togglePause() {
         let newState: CollectorState = (snapshot.collectorState == .running) ? .paused : .running
         self.snapshot.collectorState = newState
@@ -328,22 +328,22 @@ public final class AppViewModel: ObservableObject {
         }
     }
     
-    // 清空所有历史探测数据
+    // Clear all historical probe data.
     public func clearAllHistoricalData() {
         Task {
             NativeTrustEvaluator.shared.invalidateCACache()
             await agent.clearAllHistoricalData()
             refreshAllData()
-            showToast("已清空所有历史探测数据")
+            showToast("All historical probe data has been cleared")
         }
     }
     
-    // CD09: 删除规则
+    // CD09: Delete a rule.
     public func deleteRule(ruleId: String) {
         Task {
             try? await agent.deleteRule(ruleId: ruleId)
             refreshAllData()
-            showToast("规则已删除")
+            showToast("Rule deleted")
         }
     }
     

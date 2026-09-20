@@ -29,7 +29,7 @@ final class BasicTests: XCTestCase {
         
         try repo.createEpoch(id: "ep-01", name: "test-epoch", routeDigest: "d1", startMs: 1000)
         
-        // 目标 1: apple.com
+        // Target 1: apple.com
         let t1 = try repo.getOrCreateTarget(hostname: "apple.com", port: 443)
         let o1 = StorageRepository.ObservationRecord(
             sourceInstanceId: "p1", source: .nativeProbe, objectKind: "probe",
@@ -45,12 +45,12 @@ final class BasicTests: XCTestCase {
         try repo.linkObservationCertificate(obsId: o1.id, certId: "cert-apple-leaf", role: "leaf", chainType: "presented", ordinal: 0)
         try repo.saveClassification(obsId: o1.id, revision: 1, verdict: .unknown, reason: "EXTRA_PRIVATE_TRUST_NO_RECURRENCE")
         
-        // 单个域名时，distinctApex 为 1
+        // A single hostname has one distinct apex domain.
         var stats = try repo.countDistinctDomainsForCA(spki: caSPKI, caName: caName)
         XCTAssertEqual(stats.total, 1)
         XCTAssertEqual(stats.apex, 1)
         
-        // 目标 2: github.com
+        // Target 2: github.com
         let t2 = try repo.getOrCreateTarget(hostname: "github.com", port: 443)
         let o2 = StorageRepository.ObservationRecord(
             sourceInstanceId: "p2", source: .nativeProbe, objectKind: "probe",
@@ -66,13 +66,13 @@ final class BasicTests: XCTestCase {
         try repo.linkObservationCertificate(obsId: o2.id, certId: "cert-github-leaf", role: "leaf", chainType: "presented", ordinal: 0)
         try repo.saveClassification(obsId: o2.id, revision: 1, verdict: .unknown, reason: "EXTRA_PRIVATE_TRUST_NO_RECURRENCE")
         
-        // 拦截 2 个不同主域名，尚未超过 10 个域名阈值
+        // Two apex domains remain below the confirmation threshold.
         stats = try repo.countDistinctDomainsForCA(spki: caSPKI, caName: caName)
         XCTAssertEqual(stats.total, 2)
         XCTAssertEqual(stats.apex, 2)
-        XCTAssertFalse(stats.total > 10, "2 个域名尚未超过 10 个阈值")
+        XCTAssertFalse(stats.total > 10, "Two domains must not exceed the threshold of 10")
         
-        // 继续添加至 11 个不同域名 (超过 10 个)
+        // Add targets until there are 11 distinct domains.
         for i in 3...11 {
             let host = "sub\(i).example.org"
             let t = try repo.getOrCreateTarget(hostname: host, port: 443)
@@ -91,12 +91,12 @@ final class BasicTests: XCTestCase {
             try repo.saveClassification(obsId: o.id, revision: 1, verdict: .suspectedInspection, reason: "EXTRA_TRUST_RECURRENCE")
         }
         
-        // 超过 10 个不同域名，满足条件 2
+        // More than 10 distinct domains satisfy condition 2.
         stats = try repo.countDistinctDomainsForCA(spki: caSPKI, caName: caName)
         XCTAssertEqual(stats.total, 11)
-        XCTAssertTrue(stats.total > 10, "11 个域名超过 10 个阈值，满足自动确认条件")
+        XCTAssertTrue(stats.total > 10, "Eleven domains must satisfy the automatic confirmation threshold")
         
-        // 自动规则合成与一键全量升级
+        // Create the automatic rule and reclassify associated observations.
         let autoRule = Rule(
             ruleId: "auto_rule_test",
             name: caName,
@@ -105,24 +105,24 @@ final class BasicTests: XCTestCase {
             matchValue: caSPKI,
             domainScope: nil,
             origin: "system_auto",
-            explanation: "满足SWG中间人特征: 无法通过公网校验、本机受信任根校验通过，且拦截超过10个不同域名 (\(stats.total) 个域名)",
+            explanation: "Inspection criteria met: public validation failed, a locally trusted root was accepted, and more than 10 distinct domains were observed (\(stats.total) domains)",
             expiresAtMs: nil,
             revision: 1
         )
         try repo.upsertRule(autoRule)
         try repo.upgradeAllToConfirmedForCA(caName: caName, spkiSha256: caSPKI)
         
-        // 验证历史观测已被回溯升级为 confirmed_inspection
+        // Verify historical observations were upgraded to confirmed_inspection.
         let targetsWithVerdict = try repo.listTargetsWithLatestVerdict(limit: 20)
         for t in targetsWithVerdict {
-            XCTAssertEqual(t.verdict, .confirmedInspection, "目标 \(t.hostname) 应当已自动升级为 confirmedInspection")
+            XCTAssertEqual(t.verdict, .confirmedInspection, "Target \(t.hostname) should have been upgraded to confirmedInspection")
         }
     }
     
     func testSWGAutoConfirmationTwoConditions() {
         let engine = ClassificationEngine.shared
         
-        // 1. 公网校验通过：无论多少个域名，绝不能判定为确认解密 (必须为公共路径)
+        // 1. Public validation must remain public regardless of the number of domains.
         let publicRes = engine.classify(
             hostname: "example.com", port: 443, isIpv4: true, isHttps: true, isOwnTraffic: false,
             handshakeCompleted: true, nativeAccepted: true, publicPkixPassed: true,
@@ -130,9 +130,9 @@ final class BasicTests: XCTestCase {
             caSubjects: ["CN=example.com", "CN=DigiCert Global Root G2"],
             isExtraTrustAnchor: false, caDomainRecurrenceCount: 50, rules: []
         )
-        XCTAssertEqual(publicRes.verdict, .publicPath, "公网证书即便覆盖 50 个域名也必须是公共路径")
+        XCTAssertEqual(publicRes.verdict, .publicPath, "Public certificates must remain public even across 50 domains")
         
-        // 2. 满足条件 1 (公网不通过 + 本地受信任根通过)，但条件 2 域名数 <= 10 (例如 1 个域名)
+        // 2. Private validation meets condition 1, but a single domain does not satisfy condition 2.
         let singleRes = engine.classify(
             hostname: "internal.example", port: 443, isIpv4: true, isHttps: true, isOwnTraffic: false,
             handshakeCompleted: true, nativeAccepted: true, publicPkixPassed: false,
@@ -140,9 +140,9 @@ final class BasicTests: XCTestCase {
             caSubjects: ["CN=internal.example", "CN=Company SWG Root CA"],
             isExtraTrustAnchor: true, caDomainRecurrenceCount: 1, rules: []
         )
-        XCTAssertEqual(singleRes.verdict, .unknown, "仅出现 1 个域名时为未知")
+        XCTAssertEqual(singleRes.verdict, .unknown, "One domain must remain unknown")
         
-        // 3. 满足条件 1，条件 2 域名数为 2..10 (例如 5 个域名) -> 疑似状态
+        // 3. Between two and 10 distinct domains remain suspected.
         let suspectedRes = engine.classify(
             hostname: "internal.example", port: 443, isIpv4: true, isHttps: true, isOwnTraffic: false,
             handshakeCompleted: true, nativeAccepted: true, publicPkixPassed: false,
@@ -150,7 +150,7 @@ final class BasicTests: XCTestCase {
             caSubjects: ["CN=internal.example", "CN=Company SWG Root CA"],
             isExtraTrustAnchor: true, caDomainRecurrenceCount: 5, rules: []
         )
-        XCTAssertEqual(suspectedRes.verdict, .suspectedInspection, "域名数 5 个 (<= 10) 时为疑似状态")
+        XCTAssertEqual(suspectedRes.verdict, .suspectedInspection, "Five domains must remain suspected")
         
         let suspected10Res = engine.classify(
             hostname: "internal.example", port: 443, isIpv4: true, isHttps: true, isOwnTraffic: false,
@@ -159,9 +159,9 @@ final class BasicTests: XCTestCase {
             caSubjects: ["CN=internal.example", "CN=Company SWG Root CA"],
             isExtraTrustAnchor: true, caDomainRecurrenceCount: 10, rules: []
         )
-        XCTAssertEqual(suspected10Res.verdict, .suspectedInspection, "域名数恰好 10 个时仍为疑似状态")
+        XCTAssertEqual(suspected10Res.verdict, .suspectedInspection, "Exactly 10 domains must remain suspected")
         
-        // 4. 满足条件 1，且满足条件 2: 超过 10 个不同域名 (例如 11 个域名) -> 确认状态!
+        // 4. More than 10 domains, together with condition 1, confirm inspection.
         let confirmedRes = engine.classify(
             hostname: "internal.example", port: 443, isIpv4: true, isHttps: true, isOwnTraffic: false,
             handshakeCompleted: true, nativeAccepted: true, publicPkixPassed: false,
@@ -169,7 +169,7 @@ final class BasicTests: XCTestCase {
             caSubjects: ["CN=internal.example", "CN=Company SWG Root CA"],
             isExtraTrustAnchor: true, caDomainRecurrenceCount: 11, rules: []
         )
-        XCTAssertEqual(confirmedRes.verdict, .confirmedInspection, "同时满足条件 1 与条件 2 (域名数 11 > 10) 时必须为确认状态")
+        XCTAssertEqual(confirmedRes.verdict, .confirmedInspection, "Both conditions, including more than 10 domains, must confirm inspection")
         XCTAssertTrue(confirmedRes.reason.contains("SWG_INTERCEPTION_CONFIRMED"))
     }
     
@@ -180,10 +180,10 @@ final class BasicTests: XCTestCase {
         
         let first = try repo.getOrCreateTarget(hostname: "chat.deepseek.com", port: 443, requestCount: 10)
         let dup = try repo.getOrCreateTarget(hostname: "chat.deepseek.com", port: 443, requestCount: 28)
-        XCTAssertEqual(first, dup, "同一域名+端口必须去重为一条目标")
+        XCTAssertEqual(first, dup, "The same hostname and port must resolve to one target")
         
         let altPort = try repo.getOrCreateTarget(hostname: "chat.deepseek.com", port: 8443)
-        XCTAssertNotEqual(first, altPort, "同一域名不同端口必须视为不同目标")
+        XCTAssertNotEqual(first, altPort, "Different ports on one hostname must remain separate targets")
         
         for i in 0..<120 {
             _ = try repo.getOrCreateTarget(hostname: "host\(i).example.com", port: 443, requestCount: Int64(i + 1))
@@ -191,7 +191,7 @@ final class BasicTests: XCTestCase {
         
         let all = try repo.listTargetsNeverProbed(limit: 1000)
         let uniqueKeys = Set(all.map { "\($0.hostname):\($0.port)" })
-        XCTAssertEqual(all.count, uniqueKeys.count, "待探测列表不得出现重复的域名+端口")
+        XCTAssertEqual(all.count, uniqueKeys.count, "Pending targets must not contain duplicate hostname/port pairs")
         XCTAssertEqual(uniqueKeys.count, 122)
         XCTAssertTrue(uniqueKeys.contains("chat.deepseek.com:443"))
         XCTAssertTrue(uniqueKeys.contains("chat.deepseek.com:8443"))
@@ -201,11 +201,11 @@ final class BasicTests: XCTestCase {
         while true {
             let batch = try repo.listTargetsNeverProbed(limit: 50)
             if batch.isEmpty { break }
-            XCTAssertLessThanOrEqual(batch.count, 50, "每批最多 50 个")
+            XCTAssertLessThanOrEqual(batch.count, 50, "Each batch must contain at most 50 targets")
             batches += 1
             for item in batch {
                 let key = "\(item.hostname):\(item.port)"
-                XCTAssertTrue(remaining.contains(key), "批次中出现了未知或不该重复的目标 \(key)")
+                XCTAssertTrue(remaining.contains(key), "The batch contains an unknown or duplicate target: \(key)")
                 remaining.remove(key)
                 let obs = StorageRepository.ObservationRecord(
                     sourceInstanceId: "batch-\(batches)",
@@ -219,8 +219,8 @@ final class BasicTests: XCTestCase {
             }
         }
         
-        XCTAssertTrue(remaining.isEmpty, "分批探测结束后不得遗漏任何域名+端口: \(remaining)")
-        XCTAssertEqual(batches, 3, "122 个目标应按 50/50/22 分成 3 批")
+        XCTAssertTrue(remaining.isEmpty, "Batch probing must not omit any hostname/port pair: \(remaining)")
+        XCTAssertEqual(batches, 3, "122 targets must form three batches of 50, 50, and 22")
         XCTAssertEqual(try repo.listTargetsNeverProbed(limit: 50).count, 0)
     }
     
@@ -228,21 +228,21 @@ final class BasicTests: XCTestCase {
         let db = try SQLiteDatabase.inMemory()
         let repo = StorageRepository(db: db)
         
-        XCTAssertFalse(repo.hasCompletedBrowserHistoryImport(), "全新库不应视为已完成首次导入")
+        XCTAssertFalse(repo.hasCompletedBrowserHistoryImport(), "A new database must not be marked as imported")
         XCTAssertFalse(repo.hasAnyTargets())
         
         try repo.markBrowserHistoryImportCompleted()
-        XCTAssertTrue(repo.hasCompletedBrowserHistoryImport(), "标记后必须跳过后续启动导入")
+        XCTAssertTrue(repo.hasCompletedBrowserHistoryImport(), "Subsequent launches must skip an already completed import")
         
         try repo.clearAllHistoricalData()
-        XCTAssertFalse(repo.hasCompletedBrowserHistoryImport(), "清空本地数据后应允许再次首次导入")
-        XCTAssertFalse(repo.hasCompletedHistoricalBaselineProbe(), "清空后历史基线探测标记也应重置")
+        XCTAssertFalse(repo.hasCompletedBrowserHistoryImport(), "Clearing local data must allow a fresh import")
+        XCTAssertFalse(repo.hasCompletedHistoricalBaselineProbe(), "Clearing data must reset the historical probe marker")
         
         try repo.markHistoricalBaselineProbeCompleted()
         XCTAssertTrue(repo.hasCompletedHistoricalBaselineProbe())
         
         _ = try repo.getOrCreateTarget(hostname: "chat.deepseek.com", port: 443, requestCount: 1)
-        XCTAssertTrue(repo.hasAnyTargets(), "已有目标时不应再当首次启动去扫浏览器历史")
+        XCTAssertTrue(repo.hasAnyTargets(), "Existing targets must prevent first-launch history scanning")
     }
     
     func testProbeChannelWaitUntilIdleAfterBatch() async {
@@ -270,7 +270,7 @@ final class BasicTests: XCTestCase {
     }
     
     func testCADetailChromeAlignmentAndDatabaseJoin() throws {
-        // 1. 测试 CADetail DN 解析与兜底规则 (对齐 Chrome 基本信息)
+        // 1. Check CADetail distinguished-name parsing and fallback fields.
         let ca1 = CADetail(
             clusterId: "c1",
             caName: "CN=DNSPod DV TLS RSA CA 2025,O=DNSPod\\, Inc.,C=CN",
@@ -282,7 +282,7 @@ final class BasicTests: XCTestCase {
             certSha256: "97b4ccf5a75b8612f326c74c64f2afa639da3c7c539bce9b2a817a655d6e5ffd",
             spkiSha256: "8cf2a04fa02ca49bd0b10aa7fdd36597a062f541c7ef93be5671d754de477ed4",
             extraTrustVerifiedPath: ["DNSPod DV TLS RSA CA 2025"],
-            baselineStatus: "公共路径",
+            baselineStatus: "Public path",
             activeRule: nil,
             affectedDomainsCount: 3,
             notBeforeMs: 1786060800000,
@@ -292,17 +292,19 @@ final class BasicTests: XCTestCase {
         let sub = ca1.subjectElements
         XCTAssertEqual(sub.cn, "DNSPod DV TLS RSA CA 2025")
         XCTAssertEqual(sub.o, "DNSPod, Inc.")
-        XCTAssertEqual(sub.ou, "<未包含在证书中>")
+        XCTAssertEqual(sub.ou, "<Not present in certificate>")
         
         let iss = ca1.issuerElements
         XCTAssertEqual(iss.cn, "DigiCert Global Root G2")
         XCTAssertEqual(iss.o, "DigiCert Inc")
         XCTAssertEqual(iss.ou, "www.digicert.com")
         
-        XCTAssertTrue(ca1.notBeforeFormatted.contains("2026年"))
-        XCTAssertTrue(ca1.notAfterFormatted.contains("2027年"))
+        XCTAssertTrue(ca1.notBeforeFormatted.contains("2026"))
+        XCTAssertTrue(ca1.notAfterFormatted.contains("2027"))
+        XCTAssertTrue(ca1.notBeforeFormatted.contains("August"))
+        XCTAssertTrue(ca1.notAfterFormatted.contains("February"))
         
-        // 2. 测试 SQLite 数据库关联查询提取真实证书与影响域
+        // 2. Check database joins for certificate identities and affected domains.
         let db = try SQLiteDatabase.inMemory()
         let repo = StorageRepository(db: db)
         
@@ -337,14 +339,26 @@ final class BasicTests: XCTestCase {
         XCTAssertEqual(cluster.notAfterMs, 1803254399000)
     }
 
-    /// 域名详情「关联证书」必须与域名列表同名，且携带的 clusterId 能在证书列表中精确命中，保证点击可正确跳转。
+    func testEnglishCertificateValidityRangePreservesMonthNames() {
+        let ca = CADetail(
+            clusterId: "date-range", caName: "Test CA", identityKind: "public",
+            hasUserAssertion: false, subject: "CN=Test CA", issuer: "CN=Test Root",
+            validityFormatted: "October 1, 2026 to October 1, 2027",
+            certSha256: "", spkiSha256: "", extraTrustVerifiedPath: [],
+            baselineStatus: "Public path", activeRule: nil, affectedDomainsCount: 0
+        )
+        XCTAssertEqual(ca.notBeforeFormatted, "October 1, 2026")
+        XCTAssertEqual(ca.notAfterFormatted, "October 1, 2027")
+    }
+
+    /// The associated certificate must reuse the list name and uniquely resolve its clusterId for navigation.
     func testDomainDetailAssociatedCertificateLinksToCertificateDetail() throws {
         let db = try SQLiteDatabase.inMemory()
         let repo = StorageRepository(db: db, crypto: StorageCrypto(testKey: SymmetricKey(size: .bits256)))
         let service = SnapshotService(repository: repo)
         try repo.createEpoch(id: "link-epoch", name: "Test", routeDigest: "test", startMs: 1)
 
-        let caName = "关联证书跳转用 CA"
+        let caName = "Linked Certificate Test CA"
         let caId = "link-ca"
         try repo.saveCertificate(
             certId: caId, spkiId: caId, derBytes: Data([0x30]),
@@ -372,20 +386,20 @@ final class BasicTests: XCTestCase {
         let row = try XCTUnwrap(service.listDomains(search: "link.example.com").first)
         let jumpClusterId = try XCTUnwrap(row.certificateClusterId)
 
-        // 详情页展示名取自列表行，两者必须完全一致
+        // The detail display name must exactly match the list row.
         XCTAssertEqual(row.certificateSummary, caName)
         XCTAssertEqual(jumpClusterId, clusterId)
 
-        // 跳转目标必须能在证书列表中被唯一命中，否则点击会落到错误证书
+        // The navigation target must resolve to exactly one certificate cluster.
         let clusters = service.listCAClusters(showAll: true)
         let matched = clusters.filter { $0.clusterId == jumpClusterId }
-        XCTAssertEqual(matched.count, 1, "关联证书的 clusterId 必须在证书列表中唯一命中")
+        XCTAssertEqual(matched.count, 1, "The associated clusterId must uniquely match a certificate row")
         XCTAssertEqual(matched.first?.caName, row.certificateSummary)
     }
 
-    /// 版本比较是升级清理的唯一触发依据，误判会导致用户数据被错误删除，必须锁定行为。
-    /// 项目尚未发布，表结构以建表语句为唯一事实来源，不依赖任何 ALTER TABLE 迁移。
-    /// 本用例确保全新库一次建表即包含全部字段与索引。
+    /// Lock down numeric version comparisons used by installation version tracking.
+    /// The initial schema must define every field required by a new database.
+    /// Verify that a newly created database includes all required columns and indexes.
     func testFreshSchemaContainsAllColumnsAndIndexes() throws {
         let db = try SQLiteDatabase.inMemory()
 
@@ -399,11 +413,11 @@ final class BasicTests: XCTestCase {
         }
 
         let obsCols = try names("SELECT name FROM pragma_table_info('observations');")
-        XCTAssertTrue(obsCols.contains("egress_interface"), "建表语句必须直接包含 egress_interface")
-        XCTAssertTrue(obsCols.contains("route_type"), "建表语句必须直接包含 route_type")
+        XCTAssertTrue(obsCols.contains("egress_interface"), "The initial schema must contain egress_interface")
+        XCTAssertTrue(obsCols.contains("route_type"), "The initial schema must contain route_type")
 
         let targetCols = try names("SELECT name FROM pragma_table_info('targets');")
-        XCTAssertTrue(targetCols.contains("request_count"), "建表语句必须直接包含 request_count")
+        XCTAssertTrue(targetCols.contains("request_count"), "The initial schema must contain request_count")
 
         let indexes = try names("SELECT name FROM sqlite_master WHERE type='index' AND name NOT LIKE 'sqlite_%';")
         XCTAssertTrue(indexes.contains("targets_req_count_idx"))
@@ -412,18 +426,18 @@ final class BasicTests: XCTestCase {
     }
 
     func testInstallationVersionComparison() {
-        // 升级：应触发清理
+        // A higher version is newer.
         XCTAssertTrue(InstallationManager.isVersion("1.2", newerThan: "1.1"))
         XCTAssertTrue(InstallationManager.isVersion("2.0", newerThan: "1.9"))
         XCTAssertTrue(InstallationManager.isVersion("1.1.1", newerThan: "1.1"))
-        // 数字段比较而非字符串比较：1.10 必须大于 1.9
+        // Compare numeric components: 1.10 must be newer than 1.9.
         XCTAssertTrue(InstallationManager.isVersion("1.10", newerThan: "1.9"))
 
-        // 同版本重启：不得清理
+        // The same version is not newer.
         XCTAssertFalse(InstallationManager.isVersion("1.1", newerThan: "1.1"))
         XCTAssertFalse(InstallationManager.isVersion("1.1.0", newerThan: "1.1"))
 
-        // 降级：不得清理
+        // A downgrade is not newer.
         XCTAssertFalse(InstallationManager.isVersion("1.0", newerThan: "1.1"))
         XCTAssertFalse(InstallationManager.isVersion("1.9", newerThan: "1.10"))
     }
@@ -436,7 +450,7 @@ final class BasicTests: XCTestCase {
 
         var expectedClusterIds: [String: String] = [:]
         for (index, kind) in ["inspection", "suspected", "public"].enumerated() {
-            let caName = "证书列表展示名称-\(kind)"
+            let caName = "Certificate display name-\(kind)"
             let caId = "badge-ca-\(kind)"
             try repo.saveCertificate(
                 certId: caId, spkiId: caId, derBytes: Data([0x30]),
@@ -455,7 +469,7 @@ final class BasicTests: XCTestCase {
             let leafId = "badge-leaf-\(kind)"
             try repo.saveCertificate(
                 certId: leafId, spkiId: leafId, derBytes: Data([0x30]),
-                subject: "CN=\(kind).example.com", issuer: "这个 issuer 不得作为列表名称", notBeforeMs: 1, notAfterMs: 2,
+                subject: "CN=\(kind).example.com", issuer: "This issuer must not be used as the display name", notBeforeMs: 1, notAfterMs: 2,
                 isCa: false, keyUsage: [], sigAlg: "test"
             )
             try repo.linkObservationCertificate(obsId: obs.id, certId: leafId, role: "leaf", chainType: "presented", ordinal: 0)
@@ -472,27 +486,27 @@ final class BasicTests: XCTestCase {
             XCTAssertEqual(row.certificateClusterId, ca.clusterId)
             XCTAssertEqual(row.certificateSummary, ca.caName)
             XCTAssertEqual(row.certificateIdentityKind, ca.identityKind)
-            XCTAssertEqual(row.verdict, .unknown, "证书标签不得覆盖域名本身的探测判定")
+            XCTAssertEqual(row.verdict, .unknown, "Certificate labels must not override a domain's probe verdict")
             XCTAssertEqual(row.port, 8443)
             XCTAssertEqual(row.requestCount, 7)
         }
         let pending = try XCTUnwrap(before.first { $0.hostname == "pending.example.com" })
         XCTAssertNil(pending.certificateClusterId)
         XCTAssertNil(pending.certificateIdentityKind)
-        XCTAssertEqual(pending.certificateSummary ?? "待探测证书", "待探测证书")
+        XCTAssertEqual(pending.certificateSummary ?? "Awaiting probe", "Awaiting probe")
 
-        // CA 状态变化后即使域名观测不变，刷新也必须更新标签并被 Equatable 检测到。
+        // Certificate status changes must update the row and its Equatable result even when the domain observation is unchanged.
         _ = try repo.upsertCACluster(
-            spkiSha256: "badge-ca-suspected", caName: "证书列表展示名称-suspected",
+            spkiSha256: "badge-ca-suspected", caName: "Certificate display name-suspected",
             identityKind: "inspection", certId: "badge-ca-suspected"
         )
         let updated = try XCTUnwrap(service.listDomains(search: "suspected.example.com").first)
         XCTAssertEqual(updated.certificateClusterId, expectedClusterIds["suspected"])
-        XCTAssertEqual(updated.certificateSummary, "证书列表展示名称-suspected")
+        XCTAssertEqual(updated.certificateSummary, "Certificate display name-suspected")
         XCTAssertEqual(updated.certificateIdentityKind, "inspection")
         XCTAssertNotEqual(updated, before.first { $0.targetId == updated.targetId })
 
-        // 有证书名称但证书列表已无对应 CA 时，不沿用旧标签或回退到域名判定。
+        // Without a matching CA, do not reuse a stale certificate label or substitute the domain verdict.
         try db.execute(sql: "DELETE FROM ca_clusters;")
         XCTAssertTrue(service.listDomains().allSatisfy {
             $0.certificateClusterId == nil && $0.certificateSummary == nil && $0.certificateIdentityKind == nil
@@ -512,7 +526,7 @@ final class BasicTests: XCTestCase {
         var enriched = DomainRow(
             targetId: "test", hostname: "example.com", port: 443, verdict: .unknown,
             discoveredApp: nil, evidenceSource: .nativeProbe, lastObservedMs: 1,
-            certificateSummary: "证书列表展示名称"
+            certificateSummary: "Certificate display name"
         )
         enriched.certificateClusterId = "cluster-public"
         enriched.certificateIdentityKind = "public"

@@ -1,14 +1,14 @@
 //
-// SWGBar / macOS 菜单栏 TLS 检查检测器
-// 视觉规范与语义色彩 (UITheme.swift)
-// 遵循技术方案 v1.1 第 25 章：系统字体、语义色彩、圆角与间距规范
+// SWGBar / macOS menu bar TLS inspection detector
+// Typography, layout, and semantic colors (UITheme.swift)
+// System fonts, semantic colors, corner radii, and spacing.
 //
 
 import SwiftUI
 import SWGBarContracts
 
 public enum UITheme {
-    // MARK: - 字体规范 (第 25.1 章)
+    // MARK: - Typography
     public static let bodyFont = Font.system(size: 13, weight: .regular)
     public static let bodyBoldFont = Font.system(size: 13, weight: .semibold)
     public static let subFont = Font.system(size: 11, weight: .regular)
@@ -17,7 +17,7 @@ public enum UITheme {
     public static let fingerprintFont = Font.system(size: 11, weight: .regular, design: .monospaced)
     public static let titleFont = Font.system(size: 15, weight: .bold)
     
-    // MARK: - 尺寸规范 (第 15.2, 25.1 章)
+    // MARK: - Layout dimensions
     public static let panelWidth: CGFloat = 360
     public static let panelStandardHeight: CGFloat = 530
     public static let cardCornerRadius: CGFloat = 10
@@ -28,8 +28,8 @@ public enum UITheme {
     public static let space12: CGFloat = 12
     public static let space16: CGFloat = 16
     
-    // MARK: - 语义色彩 (第 25.1 章)
-    // 检查身份橙、疑似黄、公共路径中性蓝灰、未知灰、预期私有绿
+    // MARK: - Semantic colors
+    // Inspection: orange; suspected: yellow; public: blue-gray; unknown: gray; expected private: green.
     public static let colorConfirmed = Color.orange
     public static let colorSuspected = Color.yellow
     public static let colorPublicPath = Color(red: 0.35, green: 0.45, blue: 0.6)
@@ -58,14 +58,14 @@ public enum UITheme {
     
     public static func badgeText(for identityKind: String) -> String {
         switch identityKind {
-        case "inspection": return "确认"
-        case "suspected": return "疑似"
-        case "public": return "公共"
-        default: return "未知"
+        case "inspection": return "Confirmed"
+        case "suspected": return "Suspected"
+        case "public": return "Public"
+        default: return "Unknown"
         }
     }
     
-    // MARK: - 劫持比例渐变色 (10% 以内绿色，70% 以上红色，中间平滑渐变)
+    // MARK: - Inspection rate gradient: green below 10%, red above 70%
     public static func mitmColor(for ratio: Double?) -> Color {
         guard let ratio = ratio else { return .secondary }
         return Color(nsColor: mitmNSColor(for: ratio))
@@ -75,13 +75,13 @@ public enum UITheme {
         guard let ratio = ratio else { return .secondaryLabelColor }
         let clamped = min(max(ratio, 0.0), 1.0)
         if clamped <= 0.10 {
-            // 10% 以内绿色
+            // Green at or below 10%.
             return NSColor(calibratedHue: 120.0 / 360.0, saturation: 0.82, brightness: 0.85, alpha: 1.0)
         } else if clamped >= 0.70 {
-            // 70% 以上红色
+            // Red at or above 70%.
             return NSColor(calibratedHue: 0.0 / 360.0, saturation: 0.88, brightness: 0.95, alpha: 1.0)
         } else {
-            // 10% ~ 70% 之间平滑渐变
+            // Interpolate smoothly between 10% and 70%.
             let t = (clamped - 0.10) / 0.60
             let hue = (120.0 * (1.0 - t)) / 360.0
             let sat = 0.82 + t * 0.06
@@ -90,12 +90,12 @@ public enum UITheme {
         }
     }
     
-    // MARK: - Liquid Glass 视觉材质与高光规范 (macOS Liquid Glass Design System)
+    // MARK: - Glass materials and highlights
     
     public static let glassCornerRadius: CGFloat = 12
     public static let glassPillCornerRadius: CGFloat = 8
     
-    /// 液体玻璃顶部受光高光描边 (Specular Edge Rim)
+    /// Top-edge specular highlight
     public static func glassBorderStroke(cornerRadius: CGFloat = glassCornerRadius, isHovered: Bool = false) -> some View {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
             .strokeBorder(
@@ -114,7 +114,7 @@ public enum UITheme {
     }
 }
 
-// MARK: - Liquid Glass 拟真透亮卡片容器 (LiquidGlassCardModifier)
+// MARK: - Glass card container (LiquidGlassCardModifier)
 
 public struct LiquidGlassCardModifier: ViewModifier {
     var cornerRadius: CGFloat
@@ -129,11 +129,11 @@ public struct LiquidGlassCardModifier: ViewModifier {
         content
             .background(
                 ZStack {
-                    // 1. 系统底层超轻毛玻璃材质（透过壁纸和下层窗口色彩）
+                    // 1. System material reveals colors from the wallpaper and underlying windows.
                     RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                         .fill(.ultraThinMaterial)
                     
-                    // 2. 拟真流体玻璃内层光斑与漫反射渐变
+                    // 2. Inner highlights and a soft gradient provide depth.
                     RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                         .fill(
                             LinearGradient(
@@ -148,9 +148,9 @@ public struct LiquidGlassCardModifier: ViewModifier {
                         )
                 }
             )
-            // 3. 顶部左上向右下的流体折射高光边框
+            // 3. Highlight the border from the upper left toward the lower right.
             .overlay(UITheme.glassBorderStroke(cornerRadius: cornerRadius, isHovered: isHovered))
-            // 4. 柔和扩散环境光投影
+            // 4. Add a soft ambient shadow.
             .shadow(
                 color: Color.black.opacity(isHovered ? 0.08 : 0.04),
                 radius: isHovered ? 10 : 6,
@@ -160,7 +160,7 @@ public struct LiquidGlassCardModifier: ViewModifier {
     }
 }
 
-// MARK: - Liquid Glass 输入控件容器修饰器 (LiquidGlassInputModifier)
+// MARK: - Glass input container (LiquidGlassInputModifier)
 
 public struct LiquidGlassInputModifier: ViewModifier {
     var isFocusedOrActive: Bool
@@ -208,7 +208,7 @@ public struct LiquidGlassInputModifier: ViewModifier {
     }
 }
 
-// MARK: - Liquid Glass 晶莹胶囊徽章修饰器 (LiquidGlassPillModifier)
+// MARK: - Glass badge container (LiquidGlassPillModifier)
 
 public struct LiquidGlassPillModifier: ViewModifier {
     var tintColor: Color
@@ -242,20 +242,20 @@ public struct LiquidGlassPillModifier: ViewModifier {
     }
 }
 
-// MARK: - View 便捷扩展
+// MARK: - View convenience extensions
 
 extension View {
-    /// 应用标准 Liquid Glass 玻璃卡片样式
+    /// Apply the standard glass card style.
     public func liquidGlassCard(cornerRadius: CGFloat = UITheme.glassCornerRadius, isHovered: Bool = false) -> some View {
         self.modifier(LiquidGlassCardModifier(cornerRadius: cornerRadius, isHovered: isHovered))
     }
     
-    /// 应用 Liquid Glass 输入框/选择器样式
+    /// Apply the glass input or picker style.
     public func liquidGlassInput(isFocusedOrActive: Bool = false, cornerRadius: CGFloat = 8) -> some View {
         self.modifier(LiquidGlassInputModifier(isFocusedOrActive: isFocusedOrActive, cornerRadius: cornerRadius))
     }
     
-    /// 应用 Liquid Glass 晶莹药丸胶囊徽章样式
+    /// Apply the glass pill badge style.
     public func liquidGlassPill(tintColor: Color) -> some View {
         self.modifier(LiquidGlassPillModifier(tintColor: tintColor))
     }

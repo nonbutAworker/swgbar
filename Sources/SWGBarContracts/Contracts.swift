@@ -1,12 +1,12 @@
 //
-// SWGBar / macOS 菜单栏 TLS 检查检测器
-// 核心 DTO 与契约定义 (Contracts.swift)
-// 遵循技术方案 v1.1 第 26-30 章
+// SWGBar / macOS menu bar TLS inspection detector
+// Core data transfer objects and contracts (Contracts.swift)
+// Shared types for the application, storage, and RPC layers.
 //
 
 import Foundation
 
-// MARK: - 基础枚举
+// MARK: - Base enumerations
 
 public enum EvidenceSource: String, Codable, Sendable, CaseIterable {
     case systemFlow = "system_flow"
@@ -15,9 +15,9 @@ public enum EvidenceSource: String, Codable, Sendable, CaseIterable {
 
     public var displayName: String {
         switch self {
-        case .systemFlow: return "系统流元数据"
-        case .nativeProbe: return "本应用独立探测"
-        case .browserRequest: return "浏览器实际请求"
+        case .systemFlow: return "System flow metadata"
+        case .nativeProbe: return "Independent application probe"
+        case .browserRequest: return "Observed browser request"
         }
     }
 }
@@ -32,12 +32,12 @@ public enum Verdict: String, Codable, Sendable, CaseIterable {
 
     public var shortLabel: String {
         switch self {
-        case .confirmedInspection: return "已确认"
-        case .suspectedInspection: return "疑似"
-        case .publicPath: return "公共路径"
-        case .expectedPrivate: return "预期私有"
-        case .unknown: return "未知"
-        case .excluded: return "已排除"
+        case .confirmedInspection: return "Confirmed"
+        case .suspectedInspection: return "Suspected"
+        case .publicPath: return "Public path"
+        case .expectedPrivate: return "Expected private"
+        case .unknown: return "Unknown"
+        case .excluded: return "Excluded"
         }
     }
 }
@@ -50,12 +50,12 @@ public enum CollectorState: String, Codable, Sendable {
     case degraded = "degraded"
 }
 
-// MARK: - 指标与数值结构体
+// MARK: - Metrics and numeric values
 
 public struct MetricValue: Codable, Sendable, Equatable {
     public let numerator: Int64
     public let denominator: Int64
-    public let ratio: Double? // 0...1；分母为 0 必须编码为 null
+    public let ratio: Double? // Range: 0...1; encode null when the denominator is zero.
 
     public init(numerator: Int64, denominator: Int64) {
         self.numerator = numerator
@@ -129,7 +129,7 @@ public struct MetricScope: Codable, Sendable, Equatable {
     }
 }
 
-// MARK: - 快照相关 DTO
+// MARK: - Snapshot data transfer objects
 
 public struct CAClusterSummary: Codable, Sendable, Identifiable, Equatable {
     public var id: String { clusterId }
@@ -293,35 +293,35 @@ public struct OverviewSnapshot: Codable, Sendable, Equatable {
 }
 
 extension OverviewSnapshot {
-    /// 域名劫持数量 Y：仅计算已确认被中间人证书劫持的域名
+    /// Confirmed inspection count Y: only domains with a confirmed inspection certificate.
     public var mitmHijackedCount: Int64 {
         counts.confirmed
     }
 
-    /// 本机适用 HTTPS 请求/域名总量 X
+    /// Eligible HTTPS request or domain count X
     public var mitmTotalCount: Int64 {
         counts.nApplicableTotal
     }
 
-    /// 域名劫持占比 Y / X (0.0 ... 1.0)
+    /// Inspection ratio Y / X (0.0 ... 1.0)
     public var mitmRatio: Double? {
         mitmTotalCount > 0 ? Double(mitmHijackedCount) / Double(mitmTotalCount) : nil
     }
 
-    /// 详情展示百分比字符串，如 "80.0%"
+    /// Detailed percentage text, for example "80.0%"
     public var mitmPercentageString: String {
         guard let r = mitmRatio else { return "—" }
         return String(format: "%.1f%%", r * 100.0)
     }
 
-    /// 菜单栏精简展示文本，如 "MITM 80%"
+    /// Compact menu bar text, for example "MITM 80%"
     public var mitmMenuBarString: String {
         guard let r = mitmRatio else { return "MITM —" }
         return "MITM \(Int(round(r * 100.0)))%"
     }
 }
 
-// MARK: - 域名与目标 DTO
+// MARK: - Domain and target data transfer objects
 
 public struct DomainRow: Codable, Sendable, Identifiable, Equatable {
     public var id: String { targetId }
@@ -335,9 +335,9 @@ public struct DomainRow: Codable, Sendable, Identifiable, Equatable {
     public let isIpOnly: Bool
     public let requestCount: Int64
     public let certificateSummary: String?
-    /// 关联 CA 在证书列表中的状态；独立于该域名的探测判定。
+    /// The associated certificate's status is independent of the domain's probe verdict.
     public var certificateIdentityKind: String?
-    /// 关联 CA 聚类的唯一标识，用于精确命中证书列表中的同一条记录。
+    /// Unique CA cluster ID used to resolve the matching certificate row.
     public var certificateClusterId: String?
 
     public init(
@@ -383,7 +383,7 @@ public struct DomainRow: Codable, Sendable, Identifiable, Equatable {
 extension DomainRow {
     public static func formatCertSummary(_ raw: String?) -> String {
         guard let raw = raw, !raw.isEmpty else {
-            return "待探测证书"
+            return "Awaiting probe"
         }
         let parts = raw.components(separatedBy: ",")
         var cnPart: String? = nil
@@ -416,7 +416,7 @@ public struct DomainDetail: Codable, Sendable, Equatable {
     public let verdict: Verdict
     public let verdictDescription: String
     public let evidenceSource: EvidenceSource
-    /// 最近观察时间的完整格式（含日期），用于访问统计展示
+    /// Full observation timestamp, including the date, for activity details.
     public let lastObservedFormatted: String
     public let endpointAddress: String
     public let routingSummary: String
@@ -484,7 +484,7 @@ public struct DomainDetail: Codable, Sendable, Equatable {
     }
 }
 
-// MARK: - 证书与 CA 聚类 DTO
+// MARK: - Certificate and CA cluster data transfer objects
 
 public struct CADetail: Codable, Sendable, Equatable {
     public let clusterId: String
@@ -555,45 +555,45 @@ public struct CADetail: Codable, Sendable, Equatable {
         case notAfterMs = "not_after_ms"
     }
 
-    public static let zhDateFormatter: DateFormatter = {
+    public static let certificateDateFormatter: DateFormatter = {
         let f = DateFormatter()
-        f.locale = Locale(identifier: "zh_CN")
-        f.dateFormat = "yyyy年M月d日EEEE HH:mm:ss"
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "EEEE, MMMM d, yyyy HH:mm:ss"
         return f
     }()
 
     public var notBeforeFormatted: String {
         if let ms = notBeforeMs, ms > 0 {
             let date = Date(timeIntervalSince1970: TimeInterval(ms) / 1000.0)
-            return Self.zhDateFormatter.string(from: date)
+            return Self.certificateDateFormatter.string(from: date)
         }
-        if !validityFormatted.isEmpty && validityFormatted != "长期有效" {
-            if validityFormatted.contains("至") {
-                let parts = validityFormatted.components(separatedBy: "至")
+        if !validityFormatted.isEmpty && validityFormatted != "No expiration" {
+            if validityFormatted.contains(" to ") {
+                let parts = validityFormatted.components(separatedBy: " to ")
                 if !parts.isEmpty {
                     return parts[0].trimmingCharacters(in: .whitespaces)
                 }
             }
             return validityFormatted
         }
-        return "<未包含在证书中>"
+        return "<Not present in certificate>"
     }
 
     public var notAfterFormatted: String {
         if let ms = notAfterMs, ms > 0 {
             let date = Date(timeIntervalSince1970: TimeInterval(ms) / 1000.0)
-            return Self.zhDateFormatter.string(from: date)
+            return Self.certificateDateFormatter.string(from: date)
         }
-        if !validityFormatted.isEmpty && validityFormatted != "长期有效" {
-            if validityFormatted.contains("至") {
-                let parts = validityFormatted.components(separatedBy: "至")
+        if !validityFormatted.isEmpty && validityFormatted != "No expiration" {
+            if validityFormatted.contains(" to ") {
+                let parts = validityFormatted.components(separatedBy: " to ")
                 if parts.count > 1 {
                     return parts[1].trimmingCharacters(in: .whitespaces)
                 }
             }
             return validityFormatted
         }
-        return "<未包含在证书中>"
+        return "<Not present in certificate>"
     }
 
     public static func parseDNElements(_ dn: String) -> (cn: String?, o: String?, ou: String?) {
@@ -628,33 +628,33 @@ public struct CADetail: Codable, Sendable, Equatable {
                 }
                 return caName
             }
-            return "<未包含在证书中>"
+            return "<Not present in certificate>"
         }()
         return (
             cn: p.cn ?? fallbackCN,
-            o: p.o ?? "<未包含在证书中>",
-            ou: p.ou ?? "<未包含在证书中>"
+            o: p.o ?? "<Not present in certificate>",
+            ou: p.ou ?? "<Not present in certificate>"
         )
     }
 
     public var issuerElements: (cn: String, o: String, ou: String) {
         let p = Self.parseDNElements(issuer)
         let fallbackCN: String = {
-            if issuer.isEmpty { return "<未包含在证书中>" }
+            if issuer.isEmpty { return "<Not present in certificate>" }
             if issuer.contains("CN=") {
-                return Self.parseDNElements(issuer).cn ?? "<未包含在证书中>"
+                return Self.parseDNElements(issuer).cn ?? "<Not present in certificate>"
             }
             return issuer
         }()
         return (
             cn: p.cn ?? fallbackCN,
-            o: p.o ?? "<未包含在证书中>",
-            ou: p.ou ?? "<未包含在证书中>"
+            o: p.o ?? "<Not present in certificate>",
+            ou: p.ou ?? "<Not present in certificate>"
         )
     }
 }
 
-// MARK: - 规则 DTO
+// MARK: - Rule data transfer objects
 
 public struct Rule: Codable, Sendable, Identifiable, Equatable {
     public var id: String { ruleId }
@@ -711,7 +711,7 @@ public struct Rule: Codable, Sendable, Identifiable, Equatable {
     }
 }
 
-// MARK: - 时间线记录 DTO
+// MARK: - Timeline event data transfer objects
 
 public struct TimelineEvent: Codable, Sendable, Identifiable, Equatable {
     public let id: String
@@ -755,7 +755,7 @@ public struct TimelineEvent: Codable, Sendable, Identifiable, Equatable {
     }
 }
 
-// MARK: - 设置 DTO
+// MARK: - Configuration data transfer objects
 
 public struct Configuration: Codable, Sendable, Equatable {
     public var launchAtLogin: Bool
@@ -835,43 +835,43 @@ public struct Configuration: Codable, Sendable, Equatable {
     }
 }
 
-// MARK: - RPC 协议与错误包装
+// MARK: - RPC protocol and error wrappers
 
 extension NSNotification.Name {
     public static let swgBarDataChanged = NSNotification.Name("SWGBarDataChangedNotification")
 }
 
-// MARK: - 域名规范化与解析工具
+// MARK: - Domain normalization and parsing
 public enum DomainNormalizer {
-    /// 域名归一化规则（第 08 章）：小写、去除尾随点、标准 ASCII 转换、校验合法性
+    /// Normalize case, remove trailing dots, convert to ASCII, and validate hostname labels.
     public static func normalize(hostname: String) -> String? {
         var host = hostname.trimmingCharacters(in: .whitespacesAndNewlines)
         if host.isEmpty { return nil }
 
-        // 拒绝混入端口的字符串
+        // Reject strings containing a port.
         if host.contains(":") {
             if let portIdx = host.lastIndex(of: ":") {
                 host = String(host[..<portIdx])
             }
         }
 
-        // 去除尾随点
+        // Remove the trailing dot.
         while host.hasSuffix(".") {
             host.removeLast()
         }
         if host.isEmpty { return nil }
 
-        // 转小写
+        // Convert to lowercase.
         host = host.lowercased()
 
-        // 拒绝控制字符
+        // Reject control characters.
         for scalar in host.unicodeScalars {
             if scalar.value < 32 || scalar.value == 127 {
                 return nil
             }
         }
 
-        // 校验标签长度与空标签
+        // Validate label lengths and reject empty labels.
         let labels = host.split(separator: ".", omittingEmptySubsequences: false)
         for label in labels {
             if label.isEmpty || label.count > 63 {
@@ -883,7 +883,7 @@ public enum DomainNormalizer {
         return host
     }
 
-    /// 判断是否属于私网、保留、环回或本地链路地址
+    /// Identify private, reserved, loopback, and link-local addresses.
     public static func isPrivateOrReservedIP(_ hostOrIP: String) -> Bool {
         let lower = hostOrIP.lowercased()
         if lower.hasSuffix(".local") || lower.hasSuffix(".internal") || lower.hasSuffix(".corp") || lower.hasSuffix(".lan") || lower == "localhost" {
@@ -891,7 +891,7 @@ public enum DomainNormalizer {
         }
 
         let parts = hostOrIP.split(separator: ".")
-        // 若非 4 段纯数字，则不是 IPv4 字面量地址，属于公网域名，允许探测
+        // A hostname that is not a four-part numeric IPv4 literal is eligible for further resolution.
         guard parts.count == 4,
               let p0 = Int(parts[0]),
               let p1 = Int(parts[1]),
@@ -922,7 +922,7 @@ public enum DomainNormalizer {
         return false
     }
 
-    /// 提取主域名 (Apex / Registrable Domain / eTLD+1)
+    /// Extract an apex or registrable domain.
     public static func extractApexDomain(_ hostname: String) -> String {
         var host = hostname.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         if host.contains(":") {
@@ -935,7 +935,7 @@ public enum DomainNormalizer {
         if parts.count <= 2 {
             return host
         }
-        // 处理常见的两段式公共后缀，如 .com.cn, .net.cn, .org.cn, .co.uk, .co.jp
+        // Handle common two-part suffixes such as .com.cn, .net.cn, .org.cn, .co.uk, and .co.jp.
         let secondToLast = String(parts[parts.count - 2])
         let last = String(parts[parts.count - 1])
         let twoPartTLDs: Set<String> = [
@@ -949,4 +949,3 @@ public enum DomainNormalizer {
         return "\(parts[parts.count - 2]).\(last)"
     }
 }
-

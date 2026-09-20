@@ -1,7 +1,7 @@
 //
-// SWGBar / macOS 菜单栏 TLS 检查检测器
-// Tab 1：总览 (OverviewTabView.swift)
-// 遵循技术方案 v1.1 第 17 章与图 17-1 视觉设计
+// SWGBar / macOS menu bar TLS inspection detector
+// Tab 1: Overview (OverviewTabView.swift)
+// Summary metrics and relevant certificate clusters.
 //
 
 import SwiftUI
@@ -19,10 +19,10 @@ public struct OverviewTabView: View {
         GeometryReader { proxy in
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: 12) {
-                    // 主指标占比卡片 (O04) - 占据上半部剩余空间
+                    // The primary metric card uses the remaining space above the certificate list.
                     mainMetricCard
                     
-                    // 证书列表 (O07) - 保持在底部
+                    // Keep the certificate list at the bottom (O07).
                     topCAsSection
                 }
                 .padding(.horizontal, 14)
@@ -36,18 +36,18 @@ public struct OverviewTabView: View {
         }
     }
     
-    // MARK: - 主卡片 (O04: Liquid Glass 晶莹悬浮卡片)
+    // MARK: - Primary metric card (O04)
     private var mainMetricCard: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Text("域名劫持占比")
+                Text("TLS inspection rate")
                     .font(UITheme.bodyFont)
                     .foregroundColor(.secondary)
                 
                 Spacer()
                 
                 if vm.snapshot.userAssertedConfirmed > 0 {
-                    Text("含用户标注")
+                    Text("Includes user labels")
                         .font(.system(size: 10, weight: .medium))
                         .foregroundColor(.orange)
                         .padding(.horizontal, 7)
@@ -71,11 +71,11 @@ public struct OverviewTabView: View {
             
             let total = vm.snapshot.mitmTotalCount
             HStack(spacing: 10) {
-                statusMetricItem(color: UITheme.colorConfirmed, label: "确认", count: vm.snapshot.counts.confirmed, total: total)
+                statusMetricItem(color: UITheme.colorConfirmed, label: "Confirmed", count: vm.snapshot.counts.confirmed, total: total)
                     .accessibilityIdentifier("O04_metric_confirmed")
-                statusMetricItem(color: UITheme.colorSuspected, label: "疑似", count: vm.snapshot.counts.suspected, total: total)
+                statusMetricItem(color: UITheme.colorSuspected, label: "Suspected", count: vm.snapshot.counts.suspected, total: total)
                     .accessibilityIdentifier("O04_metric_suspected")
-                statusMetricItem(color: UITheme.colorPublicPath, label: "公共", count: vm.snapshot.counts.publicPath, total: total)
+                statusMetricItem(color: UITheme.colorPublicPath, label: "Public", count: vm.snapshot.counts.publicPath, total: total)
                     .accessibilityIdentifier("O04_metric_public")
             }
         }
@@ -85,15 +85,15 @@ public struct OverviewTabView: View {
         .liquidGlassCard(cornerRadius: 14)
     }
     
-    // MARK: - 证书 (O07: Liquid Glass 容器)
+    // MARK: - Certificate list (O07)
     private var topCAsSection: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text("中间人证书")
+                Text("Inspection certificates")
                     .font(UITheme.bodyBoldFont)
                 Spacer()
-                Button("查看全部 >") {
-                    vm.selectedTab = 2 // 跳转至证书 Tab
+                Button("View all >") {
+                    vm.selectedTab = 2 // Open the certificates tab.
                 }
                 .font(UITheme.subFont)
                 .foregroundColor(.accentColor)
@@ -102,7 +102,7 @@ public struct OverviewTabView: View {
             
             VStack(spacing: 3) {
                 if vm.snapshot.topClusters.isEmpty {
-                    Text("尚未发现拦截或自签名证书")
+                    Text("No inspection or self-signed certificates found")
                         .font(UITheme.subFont)
                         .foregroundColor(.secondary)
                         .padding(.vertical, 8)
@@ -120,7 +120,7 @@ public struct OverviewTabView: View {
                             
                             Spacer()
                             
-                            Text("\(cluster.affectedDomainsCount) 域名")
+                            Text("\(cluster.affectedDomainsCount) domains")
                                 .font(UITheme.subFont)
                                 .foregroundColor(.secondary)
                             
@@ -154,18 +154,25 @@ public struct OverviewTabView: View {
         .liquidGlassCard(cornerRadius: 14)
     }
     
-    // MARK: - 状态数量指标项
+    // MARK: - Status count metric
     private func statusMetricItem(color: Color, label: String, count: Int64, total: Int64) -> some View {
-        HStack(spacing: 4) {
-            Circle()
-                .fill(color)
-                .frame(width: 6, height: 6)
-                .shadow(color: color.opacity(0.5), radius: 2, x: 0, y: 0)
-            Text("\(label) \(count) / \(total)")
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 4) {
+                Circle()
+                    .fill(color)
+                    .frame(width: 6, height: 6)
+                    .shadow(color: color.opacity(0.5), radius: 2, x: 0, y: 0)
+                Text(label)
+                    .font(UITheme.subFont)
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+            }
+            Text("\(count) / \(total)")
                 .font(UITheme.subFont)
                 .foregroundColor(.secondary)
                 .lineLimit(1)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 5)
         .padding(.vertical, 2.5)
         .background(
@@ -174,4 +181,3 @@ public struct OverviewTabView: View {
         )
     }
 }
-

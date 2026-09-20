@@ -1,7 +1,7 @@
 //
-// SWGBar / macOS 菜单栏 TLS 检查检测器
-// 复制按钮 (CopyButton.swift)
-// 就地反馈：点击后图标短暂变为对勾，不打断布局、不弹出横幅
+// SWGBar / macOS menu bar TLS inspection detector
+// Copy button (CopyButton.swift)
+// Briefly show a checkmark after copying without changing layout or showing a banner.
 //
 
 import SwiftUI
@@ -34,7 +34,7 @@ public struct CopyButton: View {
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
-        .help(didCopy ? "已复制" : tooltip)
+        .help(didCopy ? "Copied" : tooltip)
         .animation(.easeInOut(duration: 0.15), value: didCopy)
     }
 

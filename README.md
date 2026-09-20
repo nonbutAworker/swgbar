@@ -1,127 +1,111 @@
-# SWGBar / macOS 菜单栏 TLS 检查检测器
+# SWGBar
 
-> 遵循《SWGBar / macOS 菜单栏 TLS 检查检测器 完整技术方案 / v1.1 · 图文合订版》100% 完整实现。
+A native macOS menu bar app for examining TLS inspection signals, certificate trust, and observed domains. The interface, documentation, and source comments are in English.
 
-从一枚 macOS 菜单栏图标，直观查看 TLS 检查迹象、证书信任来源与可观察范围。
+## Install
 
----
+**[Download SWGBar for Apple Silicon](https://github.com/nonbutAworker/swgbar/releases/latest/download/SWGBar-macOS-arm64.pkg)**
 
-## 产品边界与不可更改原则
+- Requires macOS 14 or later and an Apple Silicon Mac (M1 or later).
+- This repository is private. Sign in to a GitHub account with repository access before downloading.
+- Quit an existing copy of SWGBar, open the downloaded package, and follow the macOS Installer prompts. The package installs `SWGBar.app` in `/Applications`.
+- Launch SWGBar from Applications. Its panel opens from the menu bar; it has no Dock icon.
+- This build uses ad-hoc app signing and is **not Developer ID signed or notarized**. If macOS blocks installation or launch, review the app-specific option in **System Settings > Privacy & Security > Open Anyway**. See [Apple's instructions](https://support.apple.com/en-us/102445). Managed Macs may restrict this option.
 
-### 1. 固定约束与非目标
-- **形态**：仅 macOS 菜单栏展示（`LSUIElement = true`，无 Dock 入口、无独立主窗口、无独立设置窗口、面板尺寸固定为 420 × 640 pt）。
-- **隐私与安全**：不抓取正文、Cookie、Authorization 或完整 URL；不接管全机 TLS 私钥；不做浏览器注入、内存窃取、内核扩展或本机 MITM 代理；不主动解密用户流量、不修改用户的系统代理策略。
-- **无云端依赖**：100% 本地运算，无中心化远端分析服务器，数据仅在本机处理。
+**Upgrading:** the current application resets its local database, rules, encryption key, and archived logs when it detects a newer version. Back up the data directories listed below before upgrading if you need to retain existing records. The installer itself contains no cleanup scripts.
 
-### 2. 三项不可更改的核心法则
-1. **证据来源不能混算**：主动独立探测（`probe_domain`）与实际请求证据（`actual_request`）通道严格隔离，主动探测结果绝不回填冒充原应用的证书。
-2. **未知不能显示为 0%**：
-   - 互斥分类：$C$ (已确认检查), $S$ (疑似检查), $P$ (公共路径), $E$ (预期私有), $U$ (未知), $X$ (已排除范围)
-   - 适用总数：$N = C + S + P + E + U$
-   - 已分类数：$K = C + S + P + E$
-   - 确认检查占比：$C / N$；疑似占比：$S / N$；证据覆盖率：$K / N$
-   - 展开详情展示：已分类样本内确认占比 $C / K$
-   - 当 $N = 0$ 时显示 `— / 暂无适用样本`；$K = 0$ 时 $C / K$ 为 null；$N > 0$ 且 $K = 0$ 时显示 `— / 全部证据不足`，绝不补零。
-3. **重复 CA 不等于 MITM**：公共中间 CA 的高频复用不加风险分。先验证信任来源与用途规则，排除预期私有例外，在多个不同公共目标（$\ge 3$ eTLD+1）复现时方判定为 $S$ (疑似)。规则冲突返回 `POLICY_CONFLICT`。
+Release assets include `SHA256SUMS.txt` for checking the downloaded package:
 
----
-
-## 系统架构
-
-```
-┌──────────────────────────────────────────────────────────────┐
-│                SWGBar.app (SwiftUI + AppKit)                 │
-│   NSStatusItem (18x18 图标 + 状态)  │  420x640 pt 紧凑弹出面板 │
-│   五 Tab: 总览 │ 域名 (内联详情) │ 证书 (CA详情/规则) │ 记录 │ 设置 │
-└──────────────────────────────┬───────────────────────────────┘
-                               │ Local JSON-RPC
-┌──────────────────────────────▼───────────────────────────────┐
-│              MonitorAgent (Swift Actor Coordinator)          │
-│   - 原生信任验证 (SecTrust / SecTrustSettings 只读)            │
-│   - 调度与限流 (令牌桶 12/min, 并发 4, 预算 300/h, 冷却 15m)   │
-│   - 分类判定引擎 (C/S/P/E/U/X 互斥与冲突检测)                  │
-│   - SQLite 单写者 (WAL, AES-GCM 字段加密, HMAC 索引)          │
-│   - 网络阶段管理 (network_epoch 去抖 2s)                      │
-└──────────────┬───────────────────────────────┬───────────────┘
-               │ stdio IPC (Bidirectional)     │ 内存/流元数据
-┌──────────────▼───────────────┐ ┌─────────────▼───────────────┐
-│     CoreWorker (Go 子进程)    │ │  Filter.systemextension     │
-│ - 显式 IPv4 拨号 (tcp4)       │ │  - NEFilterDataProvider 规范│
-│ - CONNECT 隧道 (禁止静默直连) │ │  - 仅提取流元数据，立即放行   │
-│ - TLS 1.2/1.3, h2/http1.1    │ │  - 有界队列 (8192)，防阻塞   │
-│ - VerifyConnection 回调原生   │ └─────────────────────────────┘
-│ - 独立公共基线验证 (basic_pkix)│
-└──────────────────────────────┘
-```
-
----
-
-## 界面与控件映射（图文合订版 10 张图 100% 还原）
-
-| Tab / 界面 | 对应图号 | 包含的核心控件与交互 |
-| :--- | :--- | :--- |
-| **全局交互** | 图 15-1 | `G01` 菜单栏状态图标、`G02` 固定面板、`G03` 五 Tab、`G04/G05` 暂停/恢复、`G06` 设置、`G07` 退出、`G08` 快捷键 (Cmd+1..5, Esc) |
-| **首次运行与授权** | 图 16-1 | 三句解释、分步权限引导（系统扩展、网络过滤、自动探测确认）、可选浏览器增强、[启用本机监测] / [仅手动探测] |
-| **Tab 1: 总览** | 图 17-1 | `O01` 来源选择器、`O02` 时间窗 (15m/1h/24h)、`O03` 阶段选择器、`O04` 主百分比卡片 ("探测域名确认检查占比 10.0%")、`O05` 分段条与未知解释、5类分类网格 (C/S/P/E/U)、`O07` 重点 CA、`O08` [探测待处理目标]、`O10` [暂停监测] |
-| **Tab 2: 域名列表** | 图 18-1 | `D01` 搜索框 (防抖)、`D02` 过滤下拉 (来源/状态/应用)、`D03` 排序、双行域名列表项、"仅 IP" 分组、`D06` [添加探测]、`D05` [仅看未知]、`D08` [下一批 50 条] |
-| **域名详情** | 图 19-1 | `DD01` 返回导航、判定状态、证据来源卡片、端点/选路/握手/公共基线/额外信任卡片、`DD04` CA 跳转卡片、`DD11` 历史观察时间线、`DD02` [重新探测]、`DD06` [设为预期私有] |
-| **Tab 3: 证书聚类** | 图 20-1 | `C01` 范围切换 [检查身份 / 全部 CA]、`C02` 搜索、SPKI 聚类统计、CA 簇列表、`C09` [重新验证已有证据]、[加载更多] |
-| **CA 详情与规则** | 图 21-1 | Subject/Issuer/有效期、指纹一键复制、经验证额外信任路径、当前规则摘要、`CD01` [编辑检查规则]、`CD02` [预期私有规则]、`CD09` [删除规则] |
-| **Tab 4: 记录时间线** | 图 22-1 | `H01` 时间范围、`H02` 类型过滤、`H04` "只看变化" 开关、检测事件流、导出快照摘要、`H05` [导出当前范围] (默认脱敏 JSON/CSV)、`H09` [加载更早] |
-| **Tab 5: 常规与采集** | 图 23-1 | `S01` 登录时启动、`S02` 开机恢复、`S03` 外观设置、`S07` 系统采集开关、`S08` 自动探测开关、`S09` 探测速率 (12次/分)、`S10` 每日预算 (1000次/日)、`S13` [系统权限详情]、[隐私、规则与维护 >] |
-| **Tab 5: 规则与维护** | 图 24-1 | 预期私有规则编辑表单、冲突处理提示、[预览变更]、[导入签名基线]、`S24` [清除全部本地数据] (密钥轮换)、停用与卸载 |
-
----
-
-## 正确性测试矩阵（T01 - T16）
-
-本项目内置完整的单元与端到端测试，100% 覆盖技术方案第 35 章要求的测试矩阵：
-
-- **T01 公共中间 CA 高复用**：1000 域名共享同一合法公共中间 CA，不因重复升级为 MITM（判定为 `public_path`）。
-- **T02 已登记检查 CA**：有效路径命中配置规则，确认为 `confirmed_inspection` (C)，并记录规则来源。
-- **T03 未登记私有 CA**：有私有路径但无预期服务，判定为 `unknown` (U / `private_trust`)，不自动确认。
-- **T04 私有 CA 跨公共目标复现**：同一私有 CA 在 $\ge 3$ 个不同公共域名复现，判定为 `suspected_inspection` (S)。
-- **T05 内网私有服务**：域名 + CA 精确例外规则，判定为 `expected_private` (E)，其他域名不受影响。
-- **T06 公共换证与跨签名**：叶子证书或中间链变更但有效，正常分类，公钥聚类保留约束。
-- **T07 过期/错域名/伪签名**：验证失败判定为 `unknown` (U)，不能确认已完成检查。
-- **T08 无关 CA 注入链数组**：链中混入未参与验证路径的 CA，不命中检查身份。
-- **T09 App 直连与 Chrome 被检查隔离**：两来源分别输出独立快照与指标，互不回填。
-- **T10 同域名混合策略**：不同时间/进程的观察独立保留在数据库中，最新终态参与窗口聚合。
-- **T11 空样本与全未知**：$N=0$ 或 $K=0$ 时正确输出 `null` / `—`，无除零异常。
-- **T12 断流与乱序**：重发批次幂等处理，丢弃事件标记 `partial=true`。
-- **T13 明文 HTTP / IPv6 / QUIC**：标记为已排除范围 $X$，不计入适用分母 $N$。
-- **T14 缓存与预连接**：无真实发送不作为网络请求尝试。
-- **T15 规则冲突与到期**：同时命中检查身份与预期私有返回 `POLICY_CONFLICT`；到期自动恢复未分类。
-- **T16 清除数据后迟到事件**：清除数据提升 `generation`，旧会话事件拒绝写回新库。
-
----
-
-## 本机编译与运行
-
-### 环境要求
-- macOS 14.0+ (Apple Silicon / Intel)
-- Swift 6.0+ / Xcode 16+
-- Go 1.22+
-
-### 一键全量测试验证
 ```bash
-./scripts/run_all_tests.sh
+shasum -a 256 -c SHA256SUMS.txt
 ```
-执行内容：
-1. 验证 SQLite 19 张表与视图完整 DDL 语法
-2. 验证 RPC JSON Schema 规范与 29 个方法定义
-3. 运行 Go CoreWorker 测试（IPv4 限制、VerifyConnection fail-closed 与 PKIX 验证）
-4. 运行 Swift 核心测试套件（T01–T16 正确性测试矩阵与 L2/L5 压测）
-5. 验证应用打包与代码签名（`codesign` 严格模式）
-6. 验证技术方案第 5.2 节统一样例数据指标与公式（$N=1000, K=800, C/N=10.0\%$）
 
-### 一键构建应用包
+## What the app shows
+
+- **Overview:** TLS inspection metrics and relevant certificate clusters.
+- **Domains:** discovered hostnames and ports, search and certificate filters, probe results, connection details, and certificate trust details.
+- **Certificates:** certificate clusters, subjects and issuers, validity dates, fingerprints, and affected domains.
+- **Monitoring controls:** pause and resume monitoring from the panel footer.
+
+The app compares native macOS trust results with an independent public certificate baseline. Its classifications include confirmed inspection, suspected inspection, public trust, expected private trust, unknown, and excluded traffic. Classification depends on the collected evidence and configured rules; a repeated CA alone is not proof of inspection.
+
+Active probes are separate connections made by SWGBar. Their certificate results do not establish which certificate a different application received. Unsupported traffic and missing evidence limit what the app can classify.
+
+## Local data and network activity
+
+SWGBar has no central analysis service. It stores observations locally, reads certificate trust information from macOS, imports hostnames from supported browser history databases when accessible, and uses packet metadata where capture permissions permit. Automatic and manual probes create outbound TLS connections to discovered targets.
+
+Runtime files are stored in:
+
+```text
+~/Library/Application Support/SWGBar/
+~/Library/Logs/SWGBar/
+```
+
+Selected database fields are encrypted using a local key. This does not encrypt all metadata or diagnostic logs: logs can contain hostnames, IP addresses, certificate subjects, and local paths. Review them before sharing. Runtime databases, keys, and logs are excluded from Git and release packages.
+
+## Architecture
+
+| Component | Responsibility |
+| --- | --- |
+| `SWGBarApp` | SwiftUI panel, AppKit menu bar integration, and presentation state |
+| `SWGBarAgent` | Probe scheduling, classification, native trust evaluation, and snapshots |
+| `SWGBarContracts` | Shared models, logging, and installation version tracking |
+| `SWGBarStorage` | SQLite persistence and field encryption |
+| `SWGBarFilter` | Flow metadata parsing and packet capture support |
+| `coreworker` | Go TLS worker, IPv4 dialing, proxy CONNECT handling, and public PKIX validation |
+
+The app bundles the Go worker and communicates with it over standard input and output. The release package does not install a privileged helper or a Network Extension system extension. Packet capture availability depends on local permissions.
+
+## Build from source
+
+Requirements:
+
+- macOS 14 or later
+- Xcode command-line tools with Swift 6 or later
+- Go 1.22 or later
+- Python 3 for the verification script
+
+Build the native architecture of your Mac:
+
 ```bash
 ./scripts/build_app.sh
 ```
-将在 `build/SWGBar.app` 输出可直接双击运行的原生 macOS 菜单栏应用包。
 
-### 导出演示快照验证
+The app is written to `build/SWGBar.app`. Builds use path trimming and prefix maps to avoid embedding the checkout location in release binaries.
+
+Create an installer for the current architecture:
+
 ```bash
+./scripts/package_release.sh
+```
+
+The script builds the app and writes `build/SWGBar-macOS-<architecture>.pkg` and `build/SHA256SUMS.txt`. The published 1.6.0 package is built and tested on Apple Silicon. Intel binaries are not included in that release.
+
+For the existing disk image and ZIP packaging workflow:
+
+```bash
+./scripts/package_dmg.sh
+```
+
+## Verify
+
+Build the app before running the complete verification script:
+
+```bash
+./scripts/build_app.sh
+./scripts/run_all_tests.sh
+```
+
+Verification covers SQLite schema creation, RPC schema parsing, Go tests, Swift tests, bundle signature integrity, and in-memory demo metrics. Ad-hoc signature verification checks bundle integrity; it does not establish Developer ID signing or notarization.
+
+Run individual suites or inspect the version and demo snapshot:
+
+```bash
+(cd coreworker && go test ./...)
+swift test
+build/SWGBar.app/Contents/MacOS/SWGBarApp --version
 build/SWGBar.app/Contents/MacOS/SWGBarApp --dump-demo
 ```
+
+The version and demo commands do not open or reset the runtime database.

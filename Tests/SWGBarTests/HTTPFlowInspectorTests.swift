@@ -37,7 +37,7 @@ final class HTTPFlowInspectorTests: XCTestCase {
     }
     
     func testParseDNSAddressRecords() {
-        // 手工构造最小 DNS 应答：question chat.deepseek.com A，answer 1.2.3.4
+        // Construct a minimal DNS response: question chat.deepseek.com A; answer 1.2.3.4.
         var dns = Data()
         dns.append(contentsOf: [0x12, 0x34]) // id
         dns.append(contentsOf: [0x81, 0x80]) // response
