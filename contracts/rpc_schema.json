@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SWGBar RPC Protocol Schema",
+  "version": 1,
+  "description": "Local RPC protocol schema for SWGBar macOS TLS inspection detector",
+  "definitions": {
+    "EvidenceSource": {
+      "type": "string",
+      "enum": ["system_flow", "native_probe", "browser_request"]
+    },
+    "Verdict": {
+      "type": "string",
+      "enum": ["confirmed_inspection", "suspected_inspection", "public_path", "expected_private", "unknown", "excluded"]
+    },
+    "MetricValue": {
+      "type": "object",
+      "required": ["numerator", "denominator", "ratio"],
+      "properties": {
+        "numerator": { "type": "integer" },
+        "denominator": { "type": "integer" },
+        "ratio": { "type": ["number", "null"] }
+      }
+    },
+    "MetricCounts": {
+      "type": "object",
+      "required": ["confirmed", "suspected", "publicPath", "expectedPrivate", "unknown", "excluded"],
+      "properties": {
+        "confirmed": { "type": "integer" },
+        "suspected": { "type": "integer" },
+        "publicPath": { "type": "integer" },
+        "expectedPrivate": { "type": "integer" },
+        "unknown": { "type": "integer" },
+        "excluded": { "type": "integer" }
+      }
+    },
+    "ErrorEnvelope": {
+      "type": "object",
+      "required": ["code", "message_key", "retryable", "trace_id"],
+      "properties": {
+        "code": {
+          "type": "string",
+          "enum": [
+            "PERMISSION_REQUIRED",
+            "API_UNAVAILABLE",
+            "PROXY_UNSUPPORTED",
+            "PROXY_AUTH_REQUIRED",
+            "NETWORK_UNAVAILABLE",
+            "TRUST_INCOMPLETE",
+            "TRUST_REJECTED",
+            "BUDGET_EXHAUSTED",
+            "STALE_REVISION",
+            "POLICY_CONFLICT",
+            "DB_FULL",
+            "IPC_DISCONNECTED",
+            "INVALID_ARGUMENT",
+            "CANCELLED"
+          ]
+        },
+        "message_key": { "type": "string" },
+        "retryable": { "type": "boolean" },
+        "retry_after_ms": { "type": ["integer", "null"] },
+        "trace_id": { "type": "string" },
+        "details": { "type": "object" }
+      }
+    }
+  },
+  "rpc_methods": [
+    "capabilities.get",
+    "snapshot.get",
+    "snapshot.subscribe",
+    "domains.list",
+    "domains.get",
+    "clusters.list",
+    "clusters.get",
+    "certificates.get",
+    "events.list",
+    "probes.start",
+    "probes.cancel",
+    "jobs.get",
+    "jobs.revalidate",
+    "collection.setState",
+    "configuration.get",
+    "configuration.patch",
+    "rules.list",
+    "rules.upsert",
+    "rules.delete",
+    "permission.status",
+    "permission.enable",
+    "export.prepare",
+    "export.commit",
+    "export.cancel",
+    "data.clear",
+    "lifecycle.stop",
+    "lifecycle.uninstall",
+    "update.check",
+    "baseline.import"
+  ]
+}

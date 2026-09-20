@@ -1,0 +1,21 @@
+.DS_Store
+.build/
+build/
+/coreworker/coreworker
+*.app/
+*.dmg
+*.zip
+*.dSYM/
+
+# Local configuration and runtime data
+.env
+.env.*
+!.env.example
+*.log
+*.log.*
+*.sqlite
+*.sqlite-*
+.storage_key
+
+*.swp
+*~
