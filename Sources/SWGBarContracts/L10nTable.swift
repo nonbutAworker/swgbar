@@ -512,7 +512,7 @@ public enum L10nTable {
         .sha256Fingerprints: "SHA-256 フィンガープリント",
         .copyFullFingerprint: "フィンガープリント全体をコピー",
         .notPresentInCertificate: "<証明書に情報なし>",
-        .certificateDataLocalOnly: "Certificate data comes from local keychains and network evidence. Read-only analysis.",
+        .certificateDataLocalOnly: "証明書データはローカルのキーチェーンとネットワーク証跡に基づき、読み取り専用で分析されます。",
 
         .welcomeToSWGBar: "SWGBar へようこそ",
         .swgbarIntro: "SWGBar は送信接続のメタデータを観測し、検出した宛先へ TLS ハンドシェイクでプローブを行い、傍受証明書を検出します。",

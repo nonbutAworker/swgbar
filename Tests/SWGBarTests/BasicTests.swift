@@ -591,24 +591,6 @@ final class BasicTests: XCTestCase {
             XCTAssertFalse(text.contains("%@"), "\(lang.rawValue) 占位符未被替换")
         }
     }
-}
-
-private final class ProbeTargetCollector: @unchecked Sendable {
-    private let lock = NSLock()
-    private var items: [ProbeTarget] = []
-    
-    func append(_ target: ProbeTarget) {
-        lock.lock()
-        items.append(target)
-        lock.unlock()
-    }
-    
-    func snapshot() -> [ProbeTarget] {
-        lock.lock()
-        defer { lock.unlock() }
-        return items
-    }
-
     /// The footer button must cycle System -> Dark -> Light -> System.
     func testAppearanceModeCyclesThroughThreeStates() {
         XCTAssertEqual(AppearanceMode.system.next, .dark, "System must advance to Dark")
@@ -631,8 +613,6 @@ private final class ProbeTargetCollector: @unchecked Sendable {
         }
         XCTAssertNil(AppearanceMode(rawValue: "not-a-mode"), "Unknown values fall back to the default")
     }
-
-
     /// 五种语言必须齐备，且列表项用各语言自身书写。
     func testAppLanguageEndonymsAndDefault() {
         XCTAssertEqual(AppLanguage.allCases.count, 5, "本期支持五种语言")
@@ -657,7 +637,6 @@ private final class ProbeTargetCollector: @unchecked Sendable {
         XCTAssertEqual(AppLanguage.from(storedValue: nil), .english)
         XCTAssertEqual(AppLanguage.from(storedValue: "klingon"), .english)
     }
-
     /// 每个键在五种语言下都必须有译文，且不得残留英文原文。
     func testL10nTableCoversAllKeysInEveryLanguage() {
         for key in L10nKey.allCases {
@@ -669,7 +648,6 @@ private final class ProbeTargetCollector: @unchecked Sendable {
             }
         }
     }
-
     /// 带占位符的文案，各语言的占位符数量必须与英文一致，否则 String(format:) 会取到错误参数。
     func testL10nPlaceholderCountsMatchEnglish() {
         func placeholders(_ s: String) -> Int {
@@ -692,7 +670,6 @@ private final class ProbeTargetCollector: @unchecked Sendable {
             }
         }
     }
-
     /// 中日韩三种语言不得残留大段英文原文，用于发现漏翻。
     func testTranslationsAreNotEnglishCopies() {
         var untranslated: [String] = []
@@ -708,4 +685,22 @@ private final class ProbeTargetCollector: @unchecked Sendable {
         }
         XCTAssertTrue(untranslated.isEmpty, "以下文案仍是英文原文: \(untranslated)")
     }
+}
+
+private final class ProbeTargetCollector: @unchecked Sendable {
+    private let lock = NSLock()
+    private var items: [ProbeTarget] = []
+    
+    func append(_ target: ProbeTarget) {
+        lock.lock()
+        items.append(target)
+        lock.unlock()
+    }
+    
+    func snapshot() -> [ProbeTarget] {
+        lock.lock()
+        defer { lock.unlock() }
+        return items
+    }
+
 }
