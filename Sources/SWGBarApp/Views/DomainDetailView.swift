@@ -71,7 +71,7 @@ public struct DomainDetailView: View {
                                 .lineLimit(1)
                                 .truncationMode(.middle)
 
-                            CopyButton(text: detail.hostname, tooltip: "Copy hostname", size: 9, padding: 3)
+                            CopyButton(text: detail.hostname, tooltip: L(.copyHostname), size: 9, padding: 3)
                         }
 
                         Text(ipAddress)
@@ -115,7 +115,7 @@ public struct DomainDetailView: View {
                         sectionHeader(icon: "chart.bar", title: L(.activity))
 
                         VStack(spacing: 8) {
-                            cardRow(label: L(.requests), value: "\(detail.requestCount) requests", highlightValue: true)
+                            cardRow(label: L(.requests), value: L(.requestsCountFormat, detail.requestCount), highlightValue: true)
                             Divider().opacity(0.4)
                             cardRow(label: L(.lastObserved), value: detail.lastObservedFormatted, isMonospaced: true)
                         }
@@ -129,8 +129,8 @@ public struct DomainDetailView: View {
                     sectionHeader(icon: "lock.shield", title: L(.certificateAndTrust))
 
                     VStack(alignment: .leading, spacing: 10) {
-                        let isPublicPassed = (detail.verdict == .publicPath || detail.baselineVerdict == "Public path established")
-                        let isSystemTrustPassed = (detail.verdict != .unknown && detail.handshakeStatus != "Not probed or pending")
+                        let isPublicPassed = (detail.verdict == .publicPath || detail.baselineVerdict == L(.publicPathEstablished))
+                        let isSystemTrustPassed = (detail.verdict != .unknown && detail.handshakeStatus != L(.notProbedOrPending))
 
                         HStack {
                             Text(L(.systemTrust))

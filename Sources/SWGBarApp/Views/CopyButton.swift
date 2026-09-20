@@ -34,7 +34,7 @@ public struct CopyButton: View {
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
-        .help(didCopy ? "Copied" : tooltip)
+        .help(didCopy ? L(.copied) : tooltip)
         .animation(.easeInOut(duration: 0.15), value: didCopy)
     }
 

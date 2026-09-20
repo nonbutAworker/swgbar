@@ -56,7 +56,7 @@ public struct DomainsTabView: View {
                     .frame(width: 6, height: 6)
                 
                 let isFiltered = (vm.domainCertFilter != "ALL" || !vm.domainSearchText.isEmpty)
-                Text(isFiltered ? "\(vm.domainRows.count) matching domains" : "\(vm.domainRows.count) outbound domains captured")
+                Text(isFiltered ? L(.matchingDomainsFormat, vm.domainRows.count) : L(.outboundDomainsCapturedFormat, vm.domainRows.count))
                     .font(UITheme.subFont)
                     .foregroundColor(.secondary)
                 
@@ -177,7 +177,7 @@ public struct DomainsTabView: View {
             
             // Second row: certificate summary and status badge
             HStack(spacing: 6) {
-                Text(row.certificateSummary ?? "Awaiting probe")
+                Text(row.certificateSummary ?? L(.awaitingProbe))
                     .font(UITheme.subFont)
                     .foregroundColor(.secondary)
                     .lineLimit(1)
@@ -214,7 +214,7 @@ public struct DomainsTabView: View {
                 .font(.system(size: 11, weight: .medium))
                 .foregroundColor(.secondary)
             
-            TextField("Search domains...", text: $vm.domainSearchText)
+            TextField(L(.searchDomains), text: $vm.domainSearchText)
                 .textFieldStyle(.plain)
                 .font(UITheme.subFont)
                 .accessibilityIdentifier("D01_search_field")
@@ -254,7 +254,7 @@ public struct DomainsTabView: View {
                         .font(.system(size: 11, weight: .medium))
                         .foregroundColor(vm.domainCertFilter == "ALL" ? .secondary : .accentColor)
                     
-                    Text(vm.domainCertFilter == "ALL" ? "Filter certificates..." : vm.domainCertFilter)
+                    Text(vm.domainCertFilter == "ALL" ? L(.filterCertificates) : vm.domainCertFilter)
                         .font(UITheme.subFont)
                         .foregroundColor(vm.domainCertFilter == "ALL" ? .secondary : .primary)
                         .lineLimit(1)
@@ -314,7 +314,7 @@ public struct DomainsTabView: View {
                     .font(.system(size: 11, weight: .medium))
                     .foregroundColor(.secondary)
                 
-                TextField("Search certificates...", text: $certSearchText)
+                TextField(L(.searchCertificates), text: $certSearchText)
                     .textFieldStyle(.plain)
                     .font(UITheme.subFont)
                     .accessibilityIdentifier("D02_cert_search_field")

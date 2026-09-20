@@ -82,7 +82,7 @@ public struct CADetailView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                     
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(ca.subjectElements.cn != "<Not present in certificate>" ? ca.subjectElements.cn : ca.caName)
+                        Text(ca.subjectElements.cn != L(.notPresentInCertificate) ? ca.subjectElements.cn : ca.caName)
                             .font(.system(size: 15, weight: .bold))
                             .foregroundColor(.primary)
                             .lineLimit(1)
@@ -185,7 +185,7 @@ public struct CADetailView: View {
                         let isPublicPassed: Bool = {
                             if ca.identityKind == "public" { return true }
                             if ca.identityKind == "inspection" || ca.identityKind == "suspected" { return false }
-                            return ca.baselineStatus.contains("Public") && !ca.baselineStatus.contains("not established")
+                            return ca.baselineStatus.contains(L(.publicShort)) && !ca.baselineStatus.contains(L(.trustNotEstablished))
                         }()
                         let isSystemTrustPassed: Bool = (ca.identityKind != "unknown")
                         
@@ -284,7 +284,7 @@ public struct CADetailView: View {
                                 .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
-                            .help(isDomainListExpanded ? "Hide domain details" : "Show domain details")
+                            .help(isDomainListExpanded ? L(.hideDomainDetails) : L(.showDomainDetails))
                             
                             if isDomainListExpanded {
                                 ScrollView(.vertical, showsIndicators: true) {
@@ -301,7 +301,7 @@ public struct CADetailView: View {
                                                 
                                                 Spacer()
                                                 
-                                                CopyButton(text: domain, tooltip: "Copy hostname", size: 9, padding: 3)
+                                                CopyButton(text: domain, tooltip: L(.copyHostname), size: 9, padding: 3)
                                             }
                                             .padding(.horizontal, 8)
                                             .padding(.vertical, 4)
@@ -356,8 +356,8 @@ public struct CADetailView: View {
                 .foregroundColor(.secondary)
                 .frame(width: 105, alignment: .leading)
             
-            let isMissing = value == "<Not present in certificate>" || value.isEmpty
-            Text(isMissing ? "<Not present in certificate>" : value)
+            let isMissing = value == L(.notPresentInCertificate) || value.isEmpty
+            Text(isMissing ? L(.notPresentInCertificate) : value)
                 .font(UITheme.subFont)
                 .foregroundColor(isMissing ? .secondary.opacity(0.8) : .primary)
                 .lineLimit(3)
@@ -365,7 +365,7 @@ public struct CADetailView: View {
             Spacer()
             
             if canCopy && !isMissing {
-                CopyButton(text: value, tooltip: "Copy \(label)")
+                CopyButton(text: value, tooltip: L(.copyLabelFormat, label))
             }
         }
     }
@@ -377,7 +377,7 @@ public struct CADetailView: View {
                 .foregroundColor(.secondary)
                 .frame(width: 105, alignment: .leading)
             
-            let isMissing = value.isEmpty || value == "<Not present in certificate>"
+            let isMissing = value.isEmpty || value == L(.notPresentInCertificate)
             if isMissing {
                 Text(L(.notPresentInCertificate))
                     .font(UITheme.subFont)
@@ -393,17 +393,17 @@ public struct CADetailView: View {
             Spacer()
             
             if !isMissing {
-                CopyButton(text: value, tooltip: "Copy full fingerprint")
+                CopyButton(text: value, tooltip: L(.copyFullFingerprint))
             }
         }
     }
     
     private func caStatusTitle(for kind: String) -> String {
         switch kind {
-        case "inspection": return "Confirmed"
-        case "suspected": return "Suspected"
-        case "public": return "Public"
-        default: return "Unknown"
+        case "inspection": return L(.verdictConfirmed)
+        case "suspected": return L(.verdictSuspected)
+        case "public": return L(.publicShort)
+        default: return L(.verdictUnknown)
         }
     }
     

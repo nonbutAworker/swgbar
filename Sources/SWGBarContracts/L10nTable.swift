@@ -60,6 +60,23 @@ public enum L10nKey: String, CaseIterable, Sendable {
     case browserIntegration, autoProbeNewDomains
     case optional, disabledByDefault
     case stepExtensionDesc, stepFilterDesc, stepProbeDesc
+    // 外观模式（按钮上显示）
+    case appearanceSystem, appearanceDark, appearanceLight
+    // 列表占位符与空态
+    case searchDomains, searchCertificateNames, searchCertificates
+    case filterCertificates, filterByStatus, allStatuses, allCertificates
+    case awaitingProbe, viewAll, copied
+    case showDomainDetails, hideDomainDetails
+    case publicPathEstablished, notProbedOrPending, notEstablished
+    // 监测状态
+    case monitoringRunning, monitoringPaused, monitoringAwaitingPermission, monitoringLimited
+    case monitoringClickToPause, monitoringClickToResumeFormat
+    // 引导页补充
+    case stateNotEnabled, enableMonitoring, manualProbesOnly
+    case aboutPermissions, aboutPermissionsDesc, openSystemSettings
+    // 计数格式
+    case outboundDomainsCapturedFormat, matchingDomainsFormat
+    case certificateClustersFoundFormat, matchingClustersFormat
     case stateAllowed, stateNotStarted, stateComplete, statePending
     case stateAgreed, stateConsentRequired
     case collectsMetadataOnly, doesNotInstallRootCA
@@ -69,6 +86,8 @@ public enum L10nKey: String, CaseIterable, Sendable {
     case appearance, appearanceCycleHint
     case language, languageSwitchHint
     case menuBarNoSamples
+    case allStatusesFilter, trustNotEstablished, allCertificatesFilter
+    case toastMonitoringEnabled, toastManualOnly
     case menuBarSummaryFormat        // "SWGBar: TLS inspection rate %@/%@ (%@) · Confirmed %@ · Suspected %@"
     case monitoringPausedSuffix
     case quit
@@ -103,6 +122,46 @@ public enum L10nTable {
     // MARK: - English（基准，保持现有文案不变）
 
     public static let english: [L10nKey: String] = [
+        .showDomainDetails: "Show domain details",
+        .hideDomainDetails: "Hide domain details",
+        .publicPathEstablished: "Public path established",
+        .copied: "Copied",
+        .toastMonitoringEnabled: "Local monitoring enabled",
+        .toastManualOnly: "Switched to manual probes only",
+        .allStatusesFilter: "All statuses",
+        .trustNotEstablished: "not established",
+        .allCertificatesFilter: "All certificates",
+        .appearanceSystem: "System",
+        .appearanceDark: "Dark",
+        .appearanceLight: "Light",
+        .searchDomains: "Search domains...",
+        .searchCertificateNames: "Search certificate names...",
+        .searchCertificates: "Search certificates...",
+        .filterCertificates: "Filter certificates...",
+        .filterByStatus: "Filter by status...",
+        .allStatuses: "All statuses",
+        .allCertificates: "All certificates",
+        .awaitingProbe: "Awaiting probe",
+        .viewAll: "View all >",
+        .notProbedOrPending: "Not probed or pending",
+        .notEstablished: "not established",
+        .monitoringRunning: "Monitoring",
+        .monitoringPaused: "Paused",
+        .monitoringAwaitingPermission: "Awaiting permission",
+        .monitoringLimited: "Limited monitoring",
+        .monitoringClickToPause: "Monitoring - click to pause",
+        .monitoringClickToResumeFormat: "%@ · click to resume monitoring",
+        .stateNotEnabled: "Not enabled",
+        .enableMonitoring: "Enable monitoring",
+        .manualProbesOnly: "Manual probes only",
+        .aboutPermissions: "About permissions",
+        .aboutPermissionsDesc: "SWGBar requests network filter permission; it does not take control of private keys",
+        .openSystemSettings: "Open System Settings >",
+        .outboundDomainsCapturedFormat: "%d outbound domains captured",
+        .matchingDomainsFormat: "%d matching domains",
+        .certificateClustersFoundFormat: "%d certificate clusters found",
+        .matchingClustersFormat: "%d matching certificate clusters",
+
         .menuBarSummaryFormat: "SWGBar: TLS inspection rate %@/%@ (%@) · Confirmed %@ · Suspected %@",
         .monitoringPausedSuffix: " · Monitoring paused",
         .stepExtensionDesc: "Request permission for this application's system extension only",
@@ -214,6 +273,46 @@ public enum L10nTable {
     // MARK: - 简体中文
 
     public static let simplifiedChinese: [L10nKey: String] = [
+        .showDomainDetails: "展开域名详情",
+        .hideDomainDetails: "收起域名详情",
+        .publicPathEstablished: "已建立公共路径",
+        .copied: "已复制",
+        .toastMonitoringEnabled: "本机监测已启用",
+        .toastManualOnly: "已切换为仅手动探测",
+        .allStatusesFilter: "全部状态",
+        .trustNotEstablished: "未建立",
+        .allCertificatesFilter: "全部证书",
+        .appearanceSystem: "跟随系统",
+        .appearanceDark: "深色",
+        .appearanceLight: "浅色",
+        .searchDomains: "搜索域名…",
+        .searchCertificateNames: "搜索证书名称…",
+        .searchCertificates: "搜索证书…",
+        .filterCertificates: "筛选证书…",
+        .filterByStatus: "按状态筛选…",
+        .allStatuses: "全部状态",
+        .allCertificates: "全部证书",
+        .awaitingProbe: "等待探测",
+        .viewAll: "查看全部 >",
+        .notProbedOrPending: "未探测或等待中",
+        .notEstablished: "未建立",
+        .monitoringRunning: "监测中",
+        .monitoringPaused: "已暂停",
+        .monitoringAwaitingPermission: "等待授权",
+        .monitoringLimited: "受限监测",
+        .monitoringClickToPause: "监测中 · 点击暂停",
+        .monitoringClickToResumeFormat: "%@ · 点击恢复监测",
+        .stateNotEnabled: "未启用",
+        .enableMonitoring: "启用监测",
+        .manualProbesOnly: "仅手动探测",
+        .aboutPermissions: "关于权限",
+        .aboutPermissionsDesc: "SWGBar 仅申请网络过滤权限，不接管私钥",
+        .openSystemSettings: "打开系统设置 >",
+        .outboundDomainsCapturedFormat: "已捕获 %d 个出站域名",
+        .matchingDomainsFormat: "%d 个匹配域名",
+        .certificateClustersFoundFormat: "发现 %d 个证书集群",
+        .matchingClustersFormat: "%d 个匹配的证书集群",
+
         .menuBarSummaryFormat: "SWGBar：TLS 检查占比 %@/%@（%@）· 已确认 %@ · 疑似 %@",
         .monitoringPausedSuffix: " · 监测已暂停",
         .stepExtensionDesc: "仅为本应用的系统扩展申请权限",
@@ -325,6 +424,46 @@ public enum L10nTable {
     // MARK: - 繁體中文（臺港資訊術語，非簡體直轉）
 
     public static let traditionalChinese: [L10nKey: String] = [
+        .toastMonitoringEnabled: "本機監測已啟用",
+        .toastManualOnly: "已切換為僅手動探測",
+        .allStatusesFilter: "全部狀態",
+        .trustNotEstablished: "未建立",
+        .allCertificatesFilter: "全部憑證",
+        .appearanceSystem: "跟隨系統",
+        .appearanceDark: "深色",
+        .appearanceLight: "淺色",
+        .searchDomains: "搜尋網域…",
+        .searchCertificateNames: "搜尋憑證名稱…",
+        .searchCertificates: "搜尋憑證…",
+        .filterCertificates: "篩選憑證…",
+        .filterByStatus: "依狀態篩選…",
+        .allStatuses: "全部狀態",
+        .allCertificates: "全部憑證",
+        .awaitingProbe: "等待探測",
+        .viewAll: "檢視全部 >",
+        .copied: "已複製",
+        .showDomainDetails: "展開網域詳細資料",
+        .hideDomainDetails: "收合網域詳細資料",
+        .publicPathEstablished: "已建立公開路徑",
+        .notProbedOrPending: "未探測或等待中",
+        .notEstablished: "未建立",
+        .monitoringRunning: "監測中",
+        .monitoringPaused: "已暫停",
+        .monitoringAwaitingPermission: "等待授權",
+        .monitoringLimited: "受限監測",
+        .monitoringClickToPause: "監測中 · 點按暫停",
+        .monitoringClickToResumeFormat: "%@ · 點按恢復監測",
+        .stateNotEnabled: "未啟用",
+        .enableMonitoring: "啟用監測",
+        .manualProbesOnly: "僅手動探測",
+        .aboutPermissions: "關於權限",
+        .aboutPermissionsDesc: "SWGBar 僅申請網路過濾權限，不接管私密金鑰",
+        .openSystemSettings: "開啟系統設定 >",
+        .outboundDomainsCapturedFormat: "已擷取 %d 個對外網域",
+        .matchingDomainsFormat: "%d 個相符網域",
+        .certificateClustersFoundFormat: "找到 %d 個憑證叢集",
+        .matchingClustersFormat: "%d 個相符的憑證叢集",
+
         .menuBarSummaryFormat: "SWGBar：TLS 檢查比例 %@/%@（%@）· 已確認 %@ · 疑似 %@",
         .monitoringPausedSuffix: " · 監測已暫停",
         .stepExtensionDesc: "僅為本應用程式的系統擴充功能申請權限",
@@ -436,6 +575,46 @@ public enum L10nTable {
     // MARK: - 日本語
 
     public static let japanese: [L10nKey: String] = [
+        .toastMonitoringEnabled: "ローカル監視を有効にしました",
+        .toastManualOnly: "手動プローブのみに切り替えました",
+        .allStatusesFilter: "すべての状態",
+        .showDomainDetails: "ドメイン詳細を表示",
+        .hideDomainDetails: "ドメイン詳細を隠す",
+        .publicPathEstablished: "公開経路を確立",
+        .trustNotEstablished: "未確立",
+        .copied: "コピーしました",
+        .allCertificatesFilter: "すべての証明書",
+        .appearanceSystem: "システム",
+        .appearanceDark: "ダーク",
+        .appearanceLight: "ライト",
+        .searchDomains: "ドメインを検索…",
+        .searchCertificateNames: "証明書名を検索…",
+        .searchCertificates: "証明書を検索…",
+        .filterCertificates: "証明書で絞り込み…",
+        .filterByStatus: "状態で絞り込み…",
+        .allStatuses: "すべての状態",
+        .allCertificates: "すべての証明書",
+        .awaitingProbe: "プローブ待ち",
+        .viewAll: "すべて表示 >",
+        .notProbedOrPending: "未プローブまたは待機中",
+        .notEstablished: "未確立",
+        .monitoringRunning: "監視中",
+        .monitoringPaused: "一時停止中",
+        .monitoringAwaitingPermission: "権限待ち",
+        .monitoringLimited: "制限付き監視",
+        .monitoringClickToPause: "監視中 · クリックで一時停止",
+        .monitoringClickToResumeFormat: "%@ · クリックで監視を再開",
+        .stateNotEnabled: "未設定",
+        .enableMonitoring: "監視を有効にする",
+        .manualProbesOnly: "手動プローブのみ",
+        .aboutPermissions: "権限について",
+        .aboutPermissionsDesc: "SWGBar はネットワークフィルタの権限のみを要求し、秘密鍵は扱いません",
+        .openSystemSettings: "システム設定を開く >",
+        .outboundDomainsCapturedFormat: "送信ドメイン %d 件を捕捉",
+        .matchingDomainsFormat: "一致するドメイン %d 件",
+        .certificateClustersFoundFormat: "証明書クラスタ %d 件を検出",
+        .matchingClustersFormat: "一致する証明書クラスタ %d 件",
+
         .menuBarSummaryFormat: "SWGBar：TLS検査の割合 %@/%@（%@）· 確認済み %@ · 疑いあり %@",
         .monitoringPausedSuffix: " · 監視を一時停止中",
         .stepExtensionDesc: "本アプリのシステム機能拡張にのみ権限を要求します",
@@ -547,6 +726,46 @@ public enum L10nTable {
     // MARK: - 한국어
 
     public static let korean: [L10nKey: String] = [
+        .toastMonitoringEnabled: "로컬 모니터링이 활성화되었습니다",
+        .toastManualOnly: "수동 프로브 전용으로 전환했습니다",
+        .allStatusesFilter: "모든 상태",
+        .showDomainDetails: "도메인 세부 정보 표시",
+        .hideDomainDetails: "도메인 세부 정보 숨기기",
+        .publicPathEstablished: "공개 경로 확립",
+        .trustNotEstablished: "미확립",
+        .copied: "복사됨",
+        .allCertificatesFilter: "모든 인증서",
+        .appearanceSystem: "시스템",
+        .appearanceDark: "다크",
+        .appearanceLight: "라이트",
+        .searchDomains: "도메인 검색…",
+        .searchCertificateNames: "인증서 이름 검색…",
+        .searchCertificates: "인증서 검색…",
+        .filterCertificates: "인증서로 필터링…",
+        .filterByStatus: "상태로 필터링…",
+        .allStatuses: "모든 상태",
+        .allCertificates: "모든 인증서",
+        .awaitingProbe: "프로브 대기 중",
+        .viewAll: "전체 보기 >",
+        .notProbedOrPending: "미프로브 또는 대기 중",
+        .notEstablished: "미확립",
+        .monitoringRunning: "모니터링 중",
+        .monitoringPaused: "일시 중지됨",
+        .monitoringAwaitingPermission: "권한 대기 중",
+        .monitoringLimited: "제한된 모니터링",
+        .monitoringClickToPause: "모니터링 중 · 클릭하여 일시 중지",
+        .monitoringClickToResumeFormat: "%@ · 클릭하여 모니터링 재개",
+        .stateNotEnabled: "비활성",
+        .enableMonitoring: "모니터링 활성화",
+        .manualProbesOnly: "수동 프로브만",
+        .aboutPermissions: "권한 안내",
+        .aboutPermissionsDesc: "SWGBar는 네트워크 필터 권한만 요청하며 개인 키를 다루지 않습니다",
+        .openSystemSettings: "시스템 설정 열기 >",
+        .outboundDomainsCapturedFormat: "아웃바운드 도메인 %d개 포착",
+        .matchingDomainsFormat: "일치하는 도메인 %d개",
+        .certificateClustersFoundFormat: "인증서 클러스터 %d개 발견",
+        .matchingClustersFormat: "일치하는 인증서 클러스터 %d개",
+
         .menuBarSummaryFormat: "SWGBar: TLS 검사 비율 %@/%@ (%@) · 확인됨 %@ · 의심됨 %@",
         .monitoringPausedSuffix: " · 모니터링 일시 중지됨",
         .stepExtensionDesc: "이 앱의 시스템 확장에 대해서만 권한을 요청합니다",

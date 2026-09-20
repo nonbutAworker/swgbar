@@ -25,16 +25,16 @@ public struct FooterView: View {
                 HStack(spacing: 3) {
                     Image(systemName: appearance.mode.symbolName)
                         .font(.system(size: 9))
-                    Text(appearance.mode.label)
+                    Text(appearance.mode.localizedLabel)
                         .font(.system(size: 10))
                 }
                 .foregroundColor(.secondary.opacity(0.7))
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .help(L(.appearanceHintFormat, appearance.mode.label))
+            .help(L(.appearanceHintFormat, appearance.mode.localizedLabel))
             .accessibilityLabel(L(.appearance))
-            .accessibilityValue(appearance.mode.label)
+            .accessibilityValue(appearance.mode.localizedLabel)
             .accessibilityHint(L(.appearanceCycleHint))
 
             Text("v\(InstallationManager.currentVersion)")
@@ -102,15 +102,15 @@ public struct FooterView: View {
 
     /// Explain both the current state and the click action in hover and accessibility hints.
     private var toggleHint: String {
-        vm.snapshot.collectorState == .running ? "Monitoring - click to pause" : "\(statusText) · click to resume monitoring"
+        vm.snapshot.collectorState == .running ? L(.monitoringClickToPause) : L(.monitoringClickToResumeFormat, statusText)
     }
 
     private var statusText: String {
         switch vm.snapshot.collectorState {
-        case .running: return "Monitoring"
-        case .paused: return "Paused"
-        case .authorizing, .unconfigured: return "Awaiting permission"
-        case .degraded: return "Limited monitoring"
+        case .running: return L(.monitoringRunning)
+        case .paused: return L(.monitoringPaused)
+        case .authorizing, .unconfigured: return L(.monitoringAwaitingPermission)
+        case .degraded: return L(.monitoringLimited)
         }
     }
 

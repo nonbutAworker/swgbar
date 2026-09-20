@@ -77,3 +77,15 @@ public extension EvidenceSource {
         }
     }
 }
+
+public extension AppearanceMode {
+    /// 外观模式的本地化标签。原 label 保留英文，供日志等非界面场景使用。
+    @MainActor
+    var localizedLabel: String {
+        switch self {
+        case .system: return L(.appearanceSystem)
+        case .dark: return L(.appearanceDark)
+        case .light: return L(.appearanceLight)
+        }
+    }
+}

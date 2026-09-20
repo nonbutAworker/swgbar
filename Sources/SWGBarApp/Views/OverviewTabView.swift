@@ -97,7 +97,7 @@ public struct OverviewTabView: View {
                 Text(L(.inspectionCertificates))
                     .font(UITheme.bodyBoldFont)
                 Spacer()
-                Button("View all >") {
+                Button(L(.viewAll)) {
                     vm.selectedTab = 2 // Open the certificates tab.
                 }
                 .font(UITheme.subFont)

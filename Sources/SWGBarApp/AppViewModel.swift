@@ -260,7 +260,7 @@ public final class AppViewModel: ObservableObject {
                     }
                     let sortedOpts = counts.map { CertFilterOption(displayName: $0.key, filterValue: $0.key, count: $0.value) }
                         .sorted { $0.count > $1.count }
-                    self.availableCertOptions = [CertFilterOption(displayName: "All certificates", filterValue: "ALL", count: allRows.count)] + sortedOpts
+                    self.availableCertOptions = [CertFilterOption(displayName: L(.allCertificatesFilter), filterValue: "ALL", count: allRows.count)] + sortedOpts
                     
                     // Combine hostname and certificate filters while preserving the current pagination depth.
                     self.applyCombinedDomainFilter(preserveLimit: true)

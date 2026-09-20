@@ -54,7 +54,7 @@ public struct CertificatesTabView: View {
                     .frame(width: 6, height: 6)
                 
                 let isFiltered = (vm.caStatusFilter != "ALL" || !vm.caSearchText.isEmpty)
-                Text(isFiltered ? "\(vm.displayedCAClusters.count) matching certificate clusters" : "\(vm.displayedCAClusters.count) certificate clusters found")
+                Text(isFiltered ? L(.matchingClustersFormat, vm.displayedCAClusters.count) : L(.certificateClustersFoundFormat, vm.displayedCAClusters.count))
                     .font(UITheme.subFont)
                     .foregroundColor(.secondary)
                 
@@ -121,7 +121,7 @@ public struct CertificatesTabView: View {
                 .font(.system(size: 11, weight: .medium))
                 .foregroundColor(.secondary)
             
-            TextField("Search certificate names...", text: $vm.caSearchText)
+            TextField(L(.searchCertificateNames), text: $vm.caSearchText)
                 .textFieldStyle(.plain)
                 .font(UITheme.subFont)
                 .accessibilityIdentifier("C02_search_ca")
@@ -206,10 +206,10 @@ public struct CertificatesTabView: View {
     
     private var statusFilterDisplayText: String {
         switch vm.caStatusFilter {
-        case "inspection": return "Confirmed"
-        case "suspected": return "Suspected"
-        case "public": return "Public"
-        default: return "Filter by status..."
+        case "inspection": return L(.verdictConfirmed)
+        case "suspected": return L(.verdictSuspected)
+        case "public": return L(.publicShort)
+        default: return L(.filterByStatus)
         }
     }
     
@@ -219,12 +219,15 @@ public struct CertificatesTabView: View {
         let kind: String
     }
     
-    private let statusOptions: [StatusOption] = [
-        StatusOption(id: "ALL", name: "All statuses", kind: "ALL"),
-        StatusOption(id: "inspection", name: "Confirmed", kind: "inspection"),
-        StatusOption(id: "suspected", name: "Suspected", kind: "suspected"),
-        StatusOption(id: "public", name: "Public", kind: "public")
-    ]
+    // 用计算属性而非存储属性：存储属性只在初始化时求值一次，语言切换后不会更新
+    private var statusOptions: [StatusOption] {
+        [
+            StatusOption(id: "ALL", name: L(.allStatusesFilter), kind: "ALL"),
+            StatusOption(id: "inspection", name: L(.verdictConfirmed), kind: "inspection"),
+            StatusOption(id: "suspected", name: L(.verdictSuspected), kind: "suspected"),
+            StatusOption(id: "public", name: L(.publicShort), kind: "public")
+        ]
+    }
     
     private var statusPickerPopoverView: some View {
         VStack(alignment: .leading, spacing: 3) {

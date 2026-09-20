@@ -27,7 +27,7 @@ public struct OnboardingView: View {
                     Text(L(.welcomeToSWGBar))
                         .font(.system(size: 17, weight: .bold))
                     
-                    Text("Collects domain and certificate metadata, without saving message bodies.\nActive probes create additional connections.")
+                    Text(L(.collectsMetadataOnly))
                         .font(UITheme.bodyFont)
                         .foregroundColor(.primary)
                     
@@ -42,7 +42,7 @@ public struct OnboardingView: View {
                         Text(L(.permissionsAndProbes))
                             .font(UITheme.subBoldFont)
                         Spacer()
-                        Text(step1Done && step2Done ? "Allowed" : "Not enabled")
+                        Text(step1Done && step2Done ? L(.stateAllowed) : L(.stateNotEnabled))
                             .font(.system(size: 10))
                             .foregroundColor(step1Done ? .green : .secondary)
                     }
@@ -84,7 +84,7 @@ public struct OnboardingView: View {
                 
                 // Action buttons
                 HStack(spacing: 10) {
-                    Button("Enable monitoring") {
+                    Button(L(.enableMonitoring)) {
                         step1Done = true
                         step2Done = true
                         vm.configuration.systemCaptureEnabled = true
@@ -95,7 +95,7 @@ public struct OnboardingView: View {
                     .buttonStyle(.borderedProminent)
                     .frame(maxWidth: .infinity)
                     
-                    Button("Manual probes only") {
+                    Button(L(.manualProbesOnly)) {
                         vm.configuration.systemCaptureEnabled = false
                         vm.configuration.autoProbeEnabled = false
                         vm.showingOnboarding = false
@@ -108,8 +108,8 @@ public struct OnboardingView: View {
                 
                 // Supporting links
                 HStack {
-                    Button("About permissions") {
-                        vm.showToast("SWGBar requests network filter permission; it does not take control of private keys")
+                    Button(L(.aboutPermissions)) {
+                        vm.showToast(L(.aboutPermissionsDesc))
                     }
                     .buttonStyle(.plain)
                     .font(UITheme.subFont)
@@ -117,7 +117,7 @@ public struct OnboardingView: View {
                     
                     Spacer()
                     
-                    Button("Open System Settings >") {
+                    Button(L(.openSystemSettings)) {
                         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy") {
                             NSWorkspace.shared.open(url)
                         }
