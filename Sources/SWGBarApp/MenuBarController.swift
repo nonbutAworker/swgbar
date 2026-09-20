@@ -36,6 +36,14 @@ public final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegat
                 self?.updateStatusItemDisplay()
             }
             .store(in: &cancellables)
+
+        // 菜单栏的提示文案也需要随语言切换立即重建
+        LocalizationManager.shared.$language
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.updateStatusItemDisplay()
+            }
+            .store(in: &cancellables)
     }
     
     private func setupStatusItem() {
@@ -158,7 +166,7 @@ public final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegat
         let menu = NSMenu()
         menu.delegate = self
         
-        let quitItem = NSMenuItem(title: "Quit", action: #selector(menuQuit), keyEquivalent: "q")
+        let quitItem = NSMenuItem(title: L(.quit), action: #selector(menuQuit), keyEquivalent: "q")
         quitItem.target = self
         menu.addItem(quitItem)
         
@@ -188,7 +196,7 @@ public final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegat
                 ]
             )
             button.image = nil
-            button.toolTip = "SWGBar: No eligible request samples yet"
+            button.toolTip = L(.menuBarNoSamples)
             return
         }
         
@@ -207,7 +215,11 @@ public final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegat
         let y = viewModel.snapshot.mitmHijackedCount
         let x = viewModel.snapshot.mitmTotalCount
         let pct = viewModel.snapshot.mitmPercentageString
-        let stateHint = viewModel.snapshot.collectorState == .paused ? " · Monitoring paused" : ""
-        button.toolTip = "SWGBar: TLS inspection rate \(y)/\(x) (\(pct)) · Confirmed \(viewModel.snapshot.counts.confirmed) · Suspected \(viewModel.snapshot.counts.suspected)\(stateHint)"
+        let stateHint = viewModel.snapshot.collectorState == .paused ? L(.monitoringPausedSuffix) : ""
+        let summary = L(.menuBarSummaryFormat,
+                        "\(y)", "\(x)", pct,
+                        "\(viewModel.snapshot.counts.confirmed)",
+                        "\(viewModel.snapshot.counts.suspected)")
+        button.toolTip = summary + stateHint
     }
 }

@@ -8,6 +8,8 @@ import SwiftUI
 import SWGBarContracts
 
 public struct OverviewTabView: View {
+    // 订阅语言变更，切换后本视图立即重绘
+    @ObservedObject private var l10n = LocalizationManager.shared
     @ObservedObject var vm: AppViewModel
     @State private var hoveredClusterId: String? = nil
     
@@ -39,21 +41,24 @@ public struct OverviewTabView: View {
     // MARK: - Primary metric card (O04)
     private var mainMetricCard: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text("TLS inspection rate")
+            HStack(spacing: 8) {
+                Text(L(.tlsInspectionRate))
                     .font(UITheme.bodyFont)
                     .foregroundColor(.secondary)
                 
                 Spacer()
                 
                 if vm.snapshot.userAssertedConfirmed > 0 {
-                    Text("Includes user labels")
+                    Text(L(.includesUserLabels))
                         .font(.system(size: 10, weight: .medium))
                         .foregroundColor(.orange)
                         .padding(.horizontal, 7)
                         .padding(.vertical, 2.5)
                         .liquidGlassPill(tintColor: .orange)
                 }
+
+                // 语言选择器位于主卡片右上角
+                LanguagePicker()
             }
             
             Spacer(minLength: 6)
@@ -71,11 +76,11 @@ public struct OverviewTabView: View {
             
             let total = vm.snapshot.mitmTotalCount
             HStack(spacing: 10) {
-                statusMetricItem(color: UITheme.colorConfirmed, label: "Confirmed", count: vm.snapshot.counts.confirmed, total: total)
+                statusMetricItem(color: UITheme.colorConfirmed, label: L(.verdictConfirmed), count: vm.snapshot.counts.confirmed, total: total)
                     .accessibilityIdentifier("O04_metric_confirmed")
-                statusMetricItem(color: UITheme.colorSuspected, label: "Suspected", count: vm.snapshot.counts.suspected, total: total)
+                statusMetricItem(color: UITheme.colorSuspected, label: L(.verdictSuspected), count: vm.snapshot.counts.suspected, total: total)
                     .accessibilityIdentifier("O04_metric_suspected")
-                statusMetricItem(color: UITheme.colorPublicPath, label: "Public", count: vm.snapshot.counts.publicPath, total: total)
+                statusMetricItem(color: UITheme.colorPublicPath, label: L(.publicShort), count: vm.snapshot.counts.publicPath, total: total)
                     .accessibilityIdentifier("O04_metric_public")
             }
         }
@@ -89,7 +94,7 @@ public struct OverviewTabView: View {
     private var topCAsSection: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text("Inspection certificates")
+                Text(L(.inspectionCertificates))
                     .font(UITheme.bodyBoldFont)
                 Spacer()
                 Button("View all >") {
@@ -102,7 +107,7 @@ public struct OverviewTabView: View {
             
             VStack(spacing: 3) {
                 if vm.snapshot.topClusters.isEmpty {
-                    Text("No inspection or self-signed certificates found")
+                    Text(L(.noInspectionCertificatesFound))
                         .font(UITheme.subFont)
                         .foregroundColor(.secondary)
                         .padding(.vertical, 8)
@@ -120,7 +125,7 @@ public struct OverviewTabView: View {
                             
                             Spacer()
                             
-                            Text("\(cluster.affectedDomainsCount) domains")
+                            Text(L(.domainsCountFormat, cluster.affectedDomainsCount))
                                 .font(UITheme.subFont)
                                 .foregroundColor(.secondary)
                             

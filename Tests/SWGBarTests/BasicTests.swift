@@ -533,6 +533,64 @@ final class BasicTests: XCTestCase {
         let data = try JSONEncoder().encode(enriched)
         XCTAssertEqual(try JSONDecoder().decode(DomainRow.self, from: data), enriched)
     }
+    /// 五种语言必须齐全，且列表项用各语言自身书写。
+    func testAppLanguageEndonymsAndCoverage() {
+        XCTAssertEqual(AppLanguage.allCases.count, 5)
+        XCTAssertEqual(AppLanguage.default, .english, "默认语言必须是英文")
+
+        // 语言名用该语言自身书写，这是列表的展示惯例
+        XCTAssertEqual(AppLanguage.english.endonym, "English")
+        XCTAssertEqual(AppLanguage.simplifiedChinese.endonym, "简体中文")
+        XCTAssertEqual(AppLanguage.traditionalChinese.endonym, "繁體中文")
+        XCTAssertEqual(AppLanguage.japanese.endonym, "日本語")
+        XCTAssertEqual(AppLanguage.korean.endonym, "한국어")
+
+        // 持久化值往返
+        for lang in AppLanguage.allCases {
+            XCTAssertEqual(AppLanguage.from(storedValue: lang.rawValue), lang)
+        }
+        XCTAssertEqual(AppLanguage.from(storedValue: "klingon"), .english, "未知值回落英文")
+        XCTAssertEqual(AppLanguage.from(storedValue: nil), .english, "无值回落英文")
+    }
+
+    /// 每个文案键在五种语言下都必须有非空翻译，且互不相同。
+    func testLocalizationTableIsCompleteForAllLanguages() {
+        for key in L10nKey.allCases {
+            for lang in AppLanguage.allCases {
+                let value = L10nTable.string(key, lang)
+                XCTAssertFalse(value.isEmpty, "\(lang.rawValue) 缺少 \(key.rawValue)")
+                XCTAssertNotEqual(value, key.rawValue, "\(lang.rawValue) 的 \(key.rawValue) 回落到了键名")
+            }
+        }
+
+        // 抽查关键术语确实被翻译，而不是照抄英文
+        XCTAssertEqual(L10nTable.string(.overview, .simplifiedChinese), "总览")
+        XCTAssertEqual(L10nTable.string(.overview, .japanese), "概要")
+        XCTAssertEqual(L10nTable.string(.overview, .korean), "개요")
+
+        // 繁体不是简体直转：网域/憑證 等台港用语
+        XCTAssertEqual(L10nTable.string(.domains, .simplifiedChinese), "域名")
+        XCTAssertEqual(L10nTable.string(.domains, .traditionalChinese), "網域")
+        XCTAssertEqual(L10nTable.string(.certificates, .simplifiedChinese), "证书")
+        XCTAssertEqual(L10nTable.string(.certificates, .traditionalChinese), "憑證")
+    }
+
+    /// 带参数的文案在各语言下都要能正确格式化，占位符不残留。
+    func testLocalizedFormatStringsSubstituteArguments() {
+        for lang in AppLanguage.allCases {
+            let one = String(format: L10nTable.string(.domainsCountFormat, lang), 7)
+            XCTAssertTrue(one.contains("7"), "\(lang.rawValue) 未代入数量")
+            XCTAssertFalse(one.contains("%d"), "\(lang.rawValue) 占位符未被替换")
+
+            let two = String(format: L10nTable.string(.scrollForMoreFormat, lang), 20, 99)
+            XCTAssertTrue(two.contains("20") && two.contains("99"), "\(lang.rawValue) 双参数未全部代入")
+            XCTAssertFalse(two.contains("%d"), "\(lang.rawValue) 占位符未被替换")
+
+            let text = String(format: L10nTable.string(.appearanceHintFormat, lang), "Dark")
+            XCTAssertTrue(text.contains("Dark"), "\(lang.rawValue) 字符串参数未代入")
+            XCTAssertFalse(text.contains("%@"), "\(lang.rawValue) 占位符未被替换")
+        }
+    }
 }
 
 private final class ProbeTargetCollector: @unchecked Sendable {
@@ -572,5 +630,82 @@ private final class ProbeTargetCollector: @unchecked Sendable {
             XCTAssertEqual(AppearanceMode(rawValue: mode.rawValue), mode)
         }
         XCTAssertNil(AppearanceMode(rawValue: "not-a-mode"), "Unknown values fall back to the default")
+    }
+
+
+    /// 五种语言必须齐备，且列表项用各语言自身书写。
+    func testAppLanguageEndonymsAndDefault() {
+        XCTAssertEqual(AppLanguage.allCases.count, 5, "本期支持五种语言")
+        XCTAssertEqual(AppLanguage.default, .english, "默认英文")
+
+        // 列表项按惯例用该语言自身的文字书写
+        XCTAssertEqual(AppLanguage.english.endonym, "English")
+        XCTAssertEqual(AppLanguage.simplifiedChinese.endonym, "简体中文")
+        XCTAssertEqual(AppLanguage.traditionalChinese.endonym, "繁體中文")
+        XCTAssertEqual(AppLanguage.japanese.endonym, "日本語")
+        XCTAssertEqual(AppLanguage.korean.endonym, "한국어")
+
+        // 自称互不重复，否则列表里会出现两个同名项
+        XCTAssertEqual(Set(AppLanguage.allCases.map { $0.endonym }).count, 5)
+
+        // rawValue 用作持久化值，必须能往返
+        for lang in AppLanguage.allCases {
+            XCTAssertEqual(AppLanguage(rawValue: lang.rawValue), lang)
+            XCTAssertEqual(AppLanguage.from(storedValue: lang.rawValue), lang)
+        }
+        // 损坏或缺失的持久化值回落英文
+        XCTAssertEqual(AppLanguage.from(storedValue: nil), .english)
+        XCTAssertEqual(AppLanguage.from(storedValue: "klingon"), .english)
+    }
+
+    /// 每个键在五种语言下都必须有译文，且不得残留英文原文。
+    func testL10nTableCoversAllKeysInEveryLanguage() {
+        for key in L10nKey.allCases {
+            for language in AppLanguage.allCases {
+                let value = L10nTable.string(key, language)
+                XCTAssertFalse(value.isEmpty, "\(language.rawValue) 缺少 \(key.rawValue)")
+                // 回落机制会返回 rawValue，出现即说明该语言漏翻
+                XCTAssertNotEqual(value, key.rawValue, "\(language.rawValue) 未翻译 \(key.rawValue)")
+            }
+        }
+    }
+
+    /// 带占位符的文案，各语言的占位符数量必须与英文一致，否则 String(format:) 会取到错误参数。
+    func testL10nPlaceholderCountsMatchEnglish() {
+        func placeholders(_ s: String) -> Int {
+            var count = 0
+            var index = s.startIndex
+            while let range = s.range(of: "%", range: index..<s.endIndex) {
+                let next = s.index(after: range.lowerBound)
+                if next < s.endIndex, s[next] != "%" { count += 1 }
+                index = next < s.endIndex ? s.index(after: next) : s.endIndex
+            }
+            return count
+        }
+        for key in L10nKey.allCases {
+            let expected = placeholders(L10nTable.string(key, .english))
+            guard expected > 0 else { continue }
+            for language in AppLanguage.allCases where language != .english {
+                let actual = placeholders(L10nTable.string(key, language))
+                XCTAssertEqual(actual, expected,
+                               "\(language.rawValue) 的 \(key.rawValue) 占位符数量与英文不一致")
+            }
+        }
+    }
+
+    /// 中日韩三种语言不得残留大段英文原文，用于发现漏翻。
+    func testTranslationsAreNotEnglishCopies() {
+        var untranslated: [String] = []
+        for key in L10nKey.allCases {
+            let english = L10nTable.string(key, .english)
+            // 仅检查含字母且长度足够的文案，跳过 SWGBar、CN、SHA-256 等专名
+            guard english.count > 12 else { continue }
+            for language: AppLanguage in [.simplifiedChinese, .japanese, .korean] {
+                if L10nTable.string(key, language) == english {
+                    untranslated.append("\(language.rawValue)/\(key.rawValue)")
+                }
+            }
+        }
+        XCTAssertTrue(untranslated.isEmpty, "以下文案仍是英文原文: \(untranslated)")
     }
 }

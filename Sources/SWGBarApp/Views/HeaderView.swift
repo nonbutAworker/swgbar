@@ -7,6 +7,8 @@ import SwiftUI
 import SWGBarContracts
 
 public struct FooterView: View {
+    // 订阅语言变更，切换后本视图立即重绘
+    @ObservedObject private var l10n = LocalizationManager.shared
     @ObservedObject var vm: AppViewModel
     @ObservedObject private var appearance = AppearanceManager.shared
     
@@ -30,10 +32,10 @@ public struct FooterView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .help("Appearance: \(appearance.mode.label) - click to switch")
-            .accessibilityLabel("Appearance")
+            .help(L(.appearanceHintFormat, appearance.mode.label))
+            .accessibilityLabel(L(.appearance))
             .accessibilityValue(appearance.mode.label)
-            .accessibilityHint("Click to cycle between System, Dark and Light")
+            .accessibilityHint(L(.appearanceCycleHint))
 
             Text("v\(InstallationManager.currentVersion)")
                 .font(.system(size: 10))
@@ -41,7 +43,7 @@ public struct FooterView: View {
 
             Spacer()
 
-            Text("Processed on this Mac")
+            Text(L(.processedOnThisMac))
                 .font(.system(size: 10))
                 .foregroundColor(.secondary)
 
@@ -69,7 +71,7 @@ public struct FooterView: View {
             }
             .buttonStyle(.plain)
             .help(toggleHint)
-            .accessibilityLabel("Monitoring status")
+            .accessibilityLabel(L(.monitoringStatus))
             .accessibilityValue(statusText)
             .accessibilityHint(toggleHint)
         }

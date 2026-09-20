@@ -8,6 +8,8 @@ import SwiftUI
 import SWGBarContracts
 
 public struct DomainsTabView: View {
+    // 订阅语言变更，切换后本视图立即重绘
+    @ObservedObject private var l10n = LocalizationManager.shared
     @ObservedObject var vm: AppViewModel
     
     // Certificate filter popover state
@@ -64,7 +66,7 @@ public struct DomainsTabView: View {
                     Button(action: {
                         vm.resetDomainFilters()
                     }) {
-                        Text("Clear all filters")
+                        Text(L(.clearAllFilters))
                             .font(.system(size: 10))
                             .foregroundColor(.accentColor)
                     }
@@ -81,10 +83,10 @@ public struct DomainsTabView: View {
                             .font(.system(size: 36))
                             .foregroundColor(.blue.opacity(0.8))
                             .padding(.top, 40)
-                        Text("Discovering outbound HTTPS connections")
+                        Text(L(.discoveringOutboundConnections))
                             .font(UITheme.bodyBoldFont)
                             .foregroundColor(.primary)
-                        Text("SWGBar observes outbound connection metadata and probes discovered targets with a TLS handshake to look for inspection certificates.")
+                        Text(L(.swgbarIntro))
                             .font(UITheme.subFont)
                             .foregroundColor(.secondary)
                             .multilineTextAlignment(.center)
@@ -107,7 +109,7 @@ public struct DomainsTabView: View {
                             HStack(spacing: 6) {
                                 ProgressView()
                                     .controlSize(.small)
-                                Text("Scroll for more (\(vm.displayedDomainRows.count)/\(vm.domainRows.count))...")
+                                Text(L(.scrollForMoreFormat, vm.displayedDomainRows.count, vm.domainRows.count))
                                     .font(UITheme.subFont)
                                     .foregroundColor(.secondary)
                             }
@@ -162,7 +164,7 @@ public struct DomainsTabView: View {
                 Spacer()
                 
                 if row.requestCount > 0 {
-                    Text("\(row.requestCount) requests")
+                    Text(L(.requestsCountFormat, row.requestCount))
                         .font(.system(size: 11, weight: .medium, design: .monospaced))
                         .foregroundColor(.secondary)
                         .padding(.trailing, 2)
@@ -279,7 +281,7 @@ public struct DomainsTabView: View {
                         .foregroundColor(.secondary)
                 }
                 .buttonStyle(.plain)
-                .help("Clear certificate filter")
+                .help(L(.clearCertificateFilter))
             }
         }
         .padding(.horizontal, 8)
@@ -338,7 +340,7 @@ public struct DomainsTabView: View {
             // Show certificate choices with their associated domain counts.
             ScrollView(.vertical, showsIndicators: true) {
                 if filteredCertOptions.isEmpty {
-                    Text("No matching certificates")
+                    Text(L(.noMatchingCertificates))
                         .font(UITheme.subFont)
                         .foregroundColor(.secondary)
                         .padding(.vertical, 20)

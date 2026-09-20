@@ -8,6 +8,8 @@ import SwiftUI
 import SWGBarContracts
 
 public struct OnboardingView: View {
+    // 订阅语言变更，切换后本视图立即重绘
+    @ObservedObject private var l10n = LocalizationManager.shared
     @ObservedObject var vm: AppViewModel
     @State private var step1Done: Bool = false
     @State private var step2Done: Bool = false
@@ -22,14 +24,14 @@ public struct OnboardingView: View {
             VStack(alignment: .leading, spacing: 14) {
                 // Introduction
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Welcome to SWGBar")
+                    Text(L(.welcomeToSWGBar))
                         .font(.system(size: 17, weight: .bold))
                     
                     Text("Collects domain and certificate metadata, without saving message bodies.\nActive probes create additional connections.")
                         .font(UITheme.bodyFont)
                         .foregroundColor(.primary)
                     
-                    Text("Does not install root CAs or change proxy settings.")
+                    Text(L(.doesNotInstallRootCA))
                         .font(UITheme.subFont)
                         .foregroundColor(.secondary)
                 }
@@ -37,7 +39,7 @@ public struct OnboardingView: View {
                 // Permission and probe steps
                 VStack(alignment: .leading, spacing: 10) {
                     HStack {
-                        Text("Permissions and probes")
+                        Text(L(.permissionsAndProbes))
                             .font(UITheme.subBoldFont)
                         Spacer()
                         Text(step1Done && step2Done ? "Allowed" : "Not enabled")
@@ -45,15 +47,15 @@ public struct OnboardingView: View {
                             .foregroundColor(step1Done ? .green : .secondary)
                     }
                     
-                    stepRow(index: 1, title: "System extension permission", desc: "Request permission for this application's system extension only", state: step1Done ? "Allowed" : "Not started", ok: step1Done) {
+                    stepRow(index: 1, title: L(.systemExtensionPermission), desc: L(.stepExtensionDesc), state: step1Done ? L(.stateAllowed) : L(.stateNotStarted), ok: step1Done) {
                         step1Done = true
                     }
                     
-                    stepRow(index: 2, title: "Network filter permission", desc: "Observe available metadata and allow traffic immediately", state: step2Done ? "Complete" : "Pending", ok: step2Done) {
+                    stepRow(index: 2, title: L(.networkFilterPermission), desc: L(.stepFilterDesc), state: step2Done ? L(.stateComplete) : L(.statePending), ok: step2Done) {
                         step2Done = true
                     }
                     
-                    stepRow(index: 3, title: "Automatically probe new domains", desc: "12/minute; 300/hour; 1,000/day", state: step3Agreed ? "Agreed" : "Consent required", ok: step3Agreed) {
+                    stepRow(index: 3, title: L(.autoProbeNewDomains), desc: L(.stepProbeDesc), state: step3Agreed ? L(.stateAgreed) : L(.stateConsentRequired), ok: step3Agreed) {
                         step3Agreed.toggle()
                     }
                 }
@@ -64,14 +66,14 @@ public struct OnboardingView: View {
                 // Optional browser integration
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
-                        Text("Browser integration")
+                        Text(L(.browserIntegration))
                             .font(UITheme.subBoldFont)
                         Spacer()
-                        Text("Optional")
+                        Text(L(.optional))
                             .font(.system(size: 10))
                             .foregroundColor(.secondary)
                     }
-                    Text("Disabled by default; independent probes remain available.")
+                    Text(L(.disabledByDefault))
                         .font(UITheme.subFont)
                         .foregroundColor(.secondary)
                 }

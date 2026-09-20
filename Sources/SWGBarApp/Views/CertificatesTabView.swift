@@ -8,6 +8,8 @@ import SwiftUI
 import SWGBarContracts
 
 public struct CertificatesTabView: View {
+    // 订阅语言变更，切换后本视图立即重绘
+    @ObservedObject private var l10n = LocalizationManager.shared
     @ObservedObject var vm: AppViewModel
     
     @State private var showingStatusPopover: Bool = false
@@ -68,7 +70,7 @@ public struct CertificatesTabView: View {
                             .font(.system(size: 32))
                             .foregroundColor(.secondary.opacity(0.7))
                             .padding(.top, 40)
-                        Text("No matching certificate clusters")
+                        Text(L(.noMatchingCertificateClusters))
                             .font(UITheme.bodyBoldFont)
                             .foregroundColor(.secondary)
                     }
@@ -193,7 +195,7 @@ public struct CertificatesTabView: View {
                         .foregroundColor(.secondary)
                 }
                 .buttonStyle(.plain)
-                .help("Clear status filter")
+                .help(L(.clearStatusFilter))
             }
         }
         .padding(.horizontal, 8)
@@ -226,7 +228,7 @@ public struct CertificatesTabView: View {
     
     private var statusPickerPopoverView: some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text("Filter by certificate status")
+            Text(L(.filterByCertificateStatus))
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundColor(.secondary)
                 .padding(.horizontal, 8)
@@ -319,7 +321,7 @@ public struct CertificatesTabView: View {
             
             Spacer()
             
-            Text("\(ca.affectedDomainsCount) domains")
+            Text(L(.domainsCountFormat, ca.affectedDomainsCount))
                 .font(UITheme.subFont)
                 .foregroundColor(.secondary)
             

@@ -8,6 +8,8 @@ import SwiftUI
 import SWGBarContracts
 
 public struct DomainDetailView: View {
+    // 订阅语言变更，切换后本视图立即重绘
+    @ObservedObject private var l10n = LocalizationManager.shared
     @ObservedObject var vm: AppViewModel
     let targetId: String
 
@@ -20,7 +22,7 @@ public struct DomainDetailView: View {
         let detail = vm.getDomainDetail(targetId: targetId)
         let listRow = vm.domainRows.first(where: { $0.targetId == targetId })
         let certificateIdentityKind = listRow?.certificateIdentityKind
-        let statusLabel = certificateIdentityKind.map { UITheme.badgeText(for: $0) } ?? detail.verdict.shortLabel
+        let statusLabel = certificateIdentityKind.map { UITheme.badgeText(for: $0) } ?? detail.verdict.localizedLabel
         let statusColor = certificateIdentityKind.map { UITheme.color(for: $0) } ?? UITheme.color(for: detail.verdict)
         let endpointParts = detail.endpointAddress.components(separatedBy: " : ")
         let ipAddress = endpointParts.count > 1 ? endpointParts[0] : "—"
@@ -36,7 +38,7 @@ public struct DomainDetailView: View {
                         HStack(spacing: 4) {
                             Image(systemName: "chevron.backward")
                                 .font(.system(size: 11, weight: .medium))
-                            Text("Back to domains")
+                            Text(L(.backToDomains))
                                 .font(UITheme.subFont)
                         }
                         .foregroundColor(.secondary)
@@ -92,16 +94,16 @@ public struct DomainDetailView: View {
 
                 // Card 1: Network details
                 VStack(alignment: .leading, spacing: 8) {
-                    sectionHeader(icon: "network", title: "Network details")
+                    sectionHeader(icon: "network", title: L(.networkDetails))
 
                     VStack(spacing: 8) {
-                        cardRow(label: "Endpoint", value: targetAddress, isMonospaced: true)
+                        cardRow(label: L(.endpoint), value: targetAddress, isMonospaced: true)
                         Divider().opacity(0.4)
 
-                        cardRow(label: "Interface", value: detail.egressInterface, isMonospaced: true)
+                        cardRow(label: L(.interfaceLabel), value: detail.egressInterface, isMonospaced: true)
                         Divider().opacity(0.4)
 
-                        cardRow(label: "Connection", value: detail.routingSummary)
+                        cardRow(label: L(.connection), value: detail.routingSummary)
                     }
                     .padding(12)
                     .liquidGlassCard(cornerRadius: 12)
@@ -110,12 +112,12 @@ public struct DomainDetailView: View {
                 // Card 2: Activity
                 if detail.requestCount > 0 {
                     VStack(alignment: .leading, spacing: 8) {
-                        sectionHeader(icon: "chart.bar", title: "Activity")
+                        sectionHeader(icon: "chart.bar", title: L(.activity))
 
                         VStack(spacing: 8) {
-                            cardRow(label: "Requests", value: "\(detail.requestCount) requests", highlightValue: true)
+                            cardRow(label: L(.requests), value: "\(detail.requestCount) requests", highlightValue: true)
                             Divider().opacity(0.4)
-                            cardRow(label: "Last observed", value: detail.lastObservedFormatted, isMonospaced: true)
+                            cardRow(label: L(.lastObserved), value: detail.lastObservedFormatted, isMonospaced: true)
                         }
                         .padding(12)
                         .liquidGlassCard(cornerRadius: 12)
@@ -124,14 +126,14 @@ public struct DomainDetailView: View {
 
                 // Card 3: Certificate and trust
                 VStack(alignment: .leading, spacing: 8) {
-                    sectionHeader(icon: "lock.shield", title: "Certificate and trust")
+                    sectionHeader(icon: "lock.shield", title: L(.certificateAndTrust))
 
                     VStack(alignment: .leading, spacing: 10) {
                         let isPublicPassed = (detail.verdict == .publicPath || detail.baselineVerdict == "Public path established")
                         let isSystemTrustPassed = (detail.verdict != .unknown && detail.handshakeStatus != "Not probed or pending")
 
                         HStack {
-                            Text("System trust")
+                            Text(L(.systemTrust))
                                 .font(UITheme.subFont)
                                 .foregroundColor(.secondary)
                                 .frame(width: 88, alignment: .leading)
@@ -140,7 +142,7 @@ public struct DomainDetailView: View {
                                 Image(systemName: isSystemTrustPassed ? "checkmark.seal.fill" : "xmark.seal.fill")
                                     .font(.system(size: 11, weight: .semibold))
                                     .foregroundColor(isSystemTrustPassed ? .accentColor : .red)
-                                Text("macOS System Trust")
+                                Text(L(.macosSystemTrust))
                                     .font(UITheme.subFont)
                                     .foregroundColor(.primary)
                             }
@@ -155,7 +157,7 @@ public struct DomainDetailView: View {
                         Divider().opacity(0.4)
 
                         HStack {
-                            Text("Public PKI")
+                            Text(L(.publicPKI))
                                 .font(UITheme.subFont)
                                 .foregroundColor(.secondary)
                                 .frame(width: 88, alignment: .leading)
@@ -164,7 +166,7 @@ public struct DomainDetailView: View {
                                 Image(systemName: isPublicPassed ? "checkmark.seal.fill" : "xmark.seal.fill")
                                     .font(.system(size: 11, weight: .semibold))
                                     .foregroundColor(isPublicPassed ? .accentColor : .red)
-                                Text("Mozilla Root Store")
+                                Text(L(.mozillaRootStore))
                                     .font(UITheme.subFont)
                                     .foregroundColor(.primary)
                             }
@@ -183,7 +185,7 @@ public struct DomainDetailView: View {
                             let certificateClusterId = listRow?.certificateClusterId ?? detail.caClusterId
 
                             HStack {
-                                Text("Associated certificate")
+                                Text(L(.associatedCertificate))
                                     .font(UITheme.subFont)
                                     .foregroundColor(.secondary)
                                     .frame(width: 88, alignment: .leading)
@@ -220,7 +222,7 @@ public struct DomainDetailView: View {
                 // Read-only notice
                 HStack {
                     Spacer()
-                    Text("Probe evidence stays on this Mac. Read-only analysis.")
+                    Text(L(.probeEvidenceStaysLocal))
                         .font(.system(size: 10))
                         .foregroundColor(.secondary.opacity(0.6))
                     Spacer()

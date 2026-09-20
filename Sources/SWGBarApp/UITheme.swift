@@ -56,12 +56,13 @@ public enum UITheme {
         }
     }
     
+    @MainActor
     public static func badgeText(for identityKind: String) -> String {
         switch identityKind {
-        case "inspection": return "Confirmed"
-        case "suspected": return "Suspected"
-        case "public": return "Public"
-        default: return "Unknown"
+        case "inspection": return L(.verdictConfirmed)
+        case "suspected": return L(.verdictSuspected)
+        case "public": return L(.publicShort)
+        default: return L(.verdictUnknown)
         }
     }
     

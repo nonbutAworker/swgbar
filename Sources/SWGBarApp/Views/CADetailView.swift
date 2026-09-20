@@ -8,6 +8,8 @@ import SwiftUI
 import SWGBarContracts
 
 public struct CADetailView: View {
+    // 订阅语言变更，切换后本视图立即重绘
+    @ObservedObject private var l10n = LocalizationManager.shared
     @ObservedObject var vm: AppViewModel
     let clusterId: String
     @State private var isDomainListExpanded: Bool = false
@@ -27,7 +29,7 @@ public struct CADetailView: View {
                 }) {
                     HStack(spacing: 4) {
                         Image(systemName: "chevron.backward")
-                        Text("Back to certificates")
+                        Text(L(.backToCertificates))
                     }
                     .font(UITheme.subFont)
                     .foregroundColor(.secondary)
@@ -35,7 +37,7 @@ public struct CADetailView: View {
                 .buttonStyle(.plain)
                 
                 Spacer()
-                Text("Certificate cluster not found")
+                Text(L(.certificateClusterNotFound))
                     .font(UITheme.bodyFont)
                     .foregroundColor(.secondary)
                 Spacer()
@@ -55,7 +57,7 @@ public struct CADetailView: View {
                         HStack(spacing: 4) {
                             Image(systemName: "chevron.backward")
                                 .font(.system(size: 11, weight: .medium))
-                            Text("Back to certificates")
+                            Text(L(.backToCertificates))
                                 .font(UITheme.subFont)
                         }
                         .foregroundColor(.secondary)
@@ -87,7 +89,7 @@ public struct CADetailView: View {
                             .truncationMode(.middle)
                         
                         HStack(spacing: 6) {
-                            Text("\(ca.affectedDomainsCount) associated domains")
+                            Text(L(.associatedDomainsCountFormat, ca.affectedDomainsCount))
                                 .font(UITheme.subFont)
                                 .foregroundColor(.secondary)
                         }
@@ -104,7 +106,7 @@ public struct CADetailView: View {
                             .liquidGlassPill(tintColor: UITheme.color(for: ca.identityKind))
                         
                         if ca.hasUserAssertion {
-                            Text("Includes user labels")
+                            Text(L(.includesUserLabels))
                                 .font(.system(size: 9, weight: .medium))
                                 .foregroundColor(.orange)
                                 .padding(.horizontal, 5)
@@ -119,15 +121,15 @@ public struct CADetailView: View {
                 
                 // Section 1: Issued to
                 VStack(alignment: .leading, spacing: 8) {
-                    sectionHeader(icon: "person.crop.square", title: "Issued to")
+                    sectionHeader(icon: "person.crop.square", title: L(.issuedTo))
                     
                     VStack(spacing: 8) {
                         let sub = ca.subjectElements
-                        chromeRow(label: "Common name (CN)", value: sub.cn, canCopy: true)
+                        chromeRow(label: L(.commonName), value: sub.cn, canCopy: true)
                         Divider().opacity(0.4)
-                        chromeRow(label: "Organization (O)", value: sub.o)
+                        chromeRow(label: L(.organization), value: sub.o)
                         Divider().opacity(0.4)
-                        chromeRow(label: "Organizational unit (OU)", value: sub.ou)
+                        chromeRow(label: L(.organizationalUnit), value: sub.ou)
                     }
                     .padding(12)
                     .liquidGlassCard(cornerRadius: 12)
@@ -135,15 +137,15 @@ public struct CADetailView: View {
                 
                 // Section 2: Issued by
                 VStack(alignment: .leading, spacing: 8) {
-                    sectionHeader(icon: "building.2", title: "Issued by")
+                    sectionHeader(icon: "building.2", title: L(.issuedBy))
                     
                     VStack(spacing: 8) {
                         let iss = ca.issuerElements
-                        chromeRow(label: "Common name (CN)", value: iss.cn, canCopy: true)
+                        chromeRow(label: L(.commonName), value: iss.cn, canCopy: true)
                         Divider().opacity(0.4)
-                        chromeRow(label: "Organization (O)", value: iss.o)
+                        chromeRow(label: L(.organization), value: iss.o)
                         Divider().opacity(0.4)
-                        chromeRow(label: "Organizational unit (OU)", value: iss.ou)
+                        chromeRow(label: L(.organizationalUnit), value: iss.ou)
                     }
                     .padding(12)
                     .liquidGlassCard(cornerRadius: 12)
@@ -151,12 +153,12 @@ public struct CADetailView: View {
                 
                 // Section 3: Validity
                 VStack(alignment: .leading, spacing: 8) {
-                    sectionHeader(icon: "calendar", title: "Validity")
+                    sectionHeader(icon: "calendar", title: L(.validity))
                     
                     VStack(spacing: 8) {
-                        chromeRow(label: "Valid from", value: ca.notBeforeFormatted)
+                        chromeRow(label: L(.validFrom), value: ca.notBeforeFormatted)
                         Divider().opacity(0.4)
-                        chromeRow(label: "Valid until", value: ca.notAfterFormatted)
+                        chromeRow(label: L(.validUntil), value: ca.notAfterFormatted)
                     }
                     .padding(12)
                     .liquidGlassCard(cornerRadius: 12)
@@ -164,12 +166,12 @@ public struct CADetailView: View {
                 
                 // Section 4: SHA-256 fingerprints
                 VStack(alignment: .leading, spacing: 8) {
-                    sectionHeader(icon: "key", title: "SHA-256 fingerprints")
+                    sectionHeader(icon: "key", title: L(.sha256Fingerprints))
                     
                     VStack(spacing: 8) {
-                        fingerprintRow(label: "Certificate", value: ca.certSha256)
+                        fingerprintRow(label: L(.certificateShort), value: ca.certSha256)
                         Divider().opacity(0.4)
-                        fingerprintRow(label: "Public key", value: ca.spkiSha256)
+                        fingerprintRow(label: L(.publicKey), value: ca.spkiSha256)
                     }
                     .padding(12)
                     .liquidGlassCard(cornerRadius: 12)
@@ -177,7 +179,7 @@ public struct CADetailView: View {
                 
                 // Section 5: Certificate and trust, using the same terminology as domain details
                 VStack(alignment: .leading, spacing: 8) {
-                    sectionHeader(icon: "lock.shield", title: "Certificate and trust")
+                    sectionHeader(icon: "lock.shield", title: L(.certificateAndTrust))
                     
                     VStack(alignment: .leading, spacing: 10) {
                         let isPublicPassed: Bool = {
@@ -188,7 +190,7 @@ public struct CADetailView: View {
                         let isSystemTrustPassed: Bool = (ca.identityKind != "unknown")
                         
                         HStack {
-                            Text("System trust")
+                            Text(L(.systemTrust))
                                 .font(UITheme.subFont)
                                 .foregroundColor(.secondary)
                                 .frame(width: 105, alignment: .leading)
@@ -197,7 +199,7 @@ public struct CADetailView: View {
                                 Image(systemName: isSystemTrustPassed ? "checkmark.seal.fill" : "xmark.seal.fill")
                                     .font(.system(size: 11, weight: .semibold))
                                     .foregroundColor(isSystemTrustPassed ? .accentColor : .red)
-                                Text("macOS System Trust")
+                                Text(L(.macosSystemTrust))
                                     .font(UITheme.subFont)
                                     .foregroundColor(.primary)
                             }
@@ -212,7 +214,7 @@ public struct CADetailView: View {
                         Divider().opacity(0.4)
                         
                         HStack {
-                            Text("Public PKI")
+                            Text(L(.publicPKI))
                                 .font(UITheme.subFont)
                                 .foregroundColor(.secondary)
                                 .frame(width: 105, alignment: .leading)
@@ -221,7 +223,7 @@ public struct CADetailView: View {
                                 Image(systemName: isPublicPassed ? "checkmark.seal.fill" : "xmark.seal.fill")
                                     .font(.system(size: 11, weight: .semibold))
                                     .foregroundColor(isPublicPassed ? .accentColor : .red)
-                                Text("Mozilla Root Store")
+                                Text(L(.mozillaRootStore))
                                     .font(UITheme.subFont)
                                     .foregroundColor(.primary)
                             }
@@ -239,16 +241,16 @@ public struct CADetailView: View {
                 
                 // Section 6: Affected domains
                 VStack(alignment: .leading, spacing: 8) {
-                    sectionHeader(icon: "globe", title: "Affected domains")
+                    sectionHeader(icon: "globe", title: L(.affectedDomains))
                     
                     VStack(alignment: .leading, spacing: 10) {
                         HStack {
-                            Text("Associated domains")
+                            Text(L(.associatedDomains))
                                 .font(UITheme.subFont)
                                 .foregroundColor(.secondary)
                                 .frame(width: 105, alignment: .leading)
                             
-                            Text("\(ca.affectedDomainsCount) domains")
+                            Text(L(.domainsCountFormat, ca.affectedDomainsCount))
                                 .font(UITheme.subBoldFont)
                                 .foregroundColor(.primary)
                                 .padding(.horizontal, 6)
@@ -268,7 +270,7 @@ public struct CADetailView: View {
                                 isDomainListExpanded.toggle()
                             }) {
                                 HStack(spacing: 6) {
-                                    Text("Domain details (\(domains.count))")
+                                    Text(L(.domainDetailsCountFormat, domains.count))
                                         .font(UITheme.subFont)
                                         .foregroundColor(.secondary)
                                     
@@ -319,7 +321,7 @@ public struct CADetailView: View {
                 // Read-only notice
                 HStack {
                     Spacer()
-                    Text("Certificate data comes from local keychains and network evidence. Read-only analysis.")
+                    Text(L(.certificateDataLocalOnly))
                         .font(.system(size: 10))
                         .foregroundColor(.secondary.opacity(0.6))
                     Spacer()
@@ -377,7 +379,7 @@ public struct CADetailView: View {
             
             let isMissing = value.isEmpty || value == "<Not present in certificate>"
             if isMissing {
-                Text("<Not present in certificate>")
+                Text(L(.notPresentInCertificate))
                     .font(UITheme.subFont)
                     .foregroundColor(.secondary.opacity(0.8))
             } else {

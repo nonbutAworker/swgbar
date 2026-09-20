@@ -8,6 +8,8 @@ import SwiftUI
 import SWGBarContracts
 
 public struct MainPanelView: View {
+    // 订阅语言变更，切换后本视图立即重绘
+    @ObservedObject private var l10n = LocalizationManager.shared
     @StateObject var vm: AppViewModel
     
     public init(viewModel: AppViewModel? = nil) {
@@ -85,9 +87,9 @@ public struct MainPanelView: View {
     // MARK: - Three-tab selector (G03)
     private var tabBar: some View {
         HStack(spacing: 4) {
-            tabButton(title: "Overview", icon: "house", index: 0)
-            tabButton(title: "Domains", icon: "globe", index: 1)
-            tabButton(title: "Certificates", icon: "doc.plaintext", index: 2)
+            tabButton(title: L(.overview), icon: "house", index: 0)
+            tabButton(title: L(.domains), icon: "globe", index: 1)
+            tabButton(title: L(.certificates), icon: "doc.plaintext", index: 2)
         }
         .padding(3)
         .background(
