@@ -2,12 +2,25 @@
 
 A native macOS menu bar app for examining TLS inspection signals, certificate trust, and observed domains. The interface, documentation, and source comments are in English.
 
+<p align="center">
+  <img src="docs/images/swgbardemo.png" alt="SWGBar overview showing TLS inspection metrics and certificate classifications" width="420">
+</p>
+
 ## Install
+
+Install the latest release from Terminal:
+
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/nonbutAworker/swgbar/main/install.sh)"
+```
+
+The script verifies the download's SHA-256 checksum and the app's code signature, then installs SWGBar in `~/Applications` for your user account. No administrator password is required. Quit SWGBar first if it is running. The app is not launched automatically.
+
+You can also download the installer directly:
 
 **[Download SWGBar for Apple Silicon](https://github.com/nonbutAworker/swgbar/releases/latest/download/SWGBar-macOS-arm64.pkg)**
 
 - Requires macOS 14 or later and an Apple Silicon Mac (M1 or later).
-- This repository is private. Sign in to a GitHub account with repository access before downloading.
 - Quit an existing copy of SWGBar, open the downloaded package, and follow the macOS Installer prompts. The package installs `SWGBar.app` in `/Applications`.
 - Launch SWGBar from Applications. Its panel opens from the menu bar; it has no Dock icon.
 - This build uses ad-hoc app signing and is **not Developer ID signed or notarized**. If macOS blocks installation or launch, review the app-specific option in **System Settings > Privacy & Security > Open Anyway**. See [Apple's instructions](https://support.apple.com/en-us/102445). Managed Macs may restrict this option.
