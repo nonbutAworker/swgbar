@@ -14,7 +14,7 @@ Install the latest release from Terminal:
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/nonbutAworker/swgbar/main/install.sh)"
 ```
 
-The script verifies the download's SHA-256 checksum and the app's code signature, then installs SWGBar in `~/Applications` for your user account. No administrator password is required. Quit SWGBar first if it is running. The app is not launched automatically.
+The script verifies the download's SHA-256 checksum and the app's code signature, then installs SWGBar in `~/Applications` for your user account and launches the installed copy automatically. No administrator password is required. Quit SWGBar first if it is running. Look for its icon in the menu bar after installation.
 
 You can also download the installer directly:
 
@@ -25,7 +25,7 @@ You can also download the installer directly:
 - Launch SWGBar from Applications. Its panel opens from the menu bar; it has no Dock icon.
 - This build uses ad-hoc app signing and is **not Developer ID signed or notarized**. If macOS blocks installation or launch, review the app-specific option in **System Settings > Privacy & Security > Open Anyway**. See [Apple's instructions](https://support.apple.com/en-us/102445). Managed Macs may restrict this option.
 
-**Upgrading:** the current application resets its local database, rules, encryption key, and archived logs when it detects a newer version. Back up the data directories listed below before upgrading if you need to retain existing records. The installer itself contains no cleanup scripts.
+**Upgrading:** the current application resets its local database, rules, encryption key, and archived logs when it detects a newer version. The one-command installer launches the app, so this reset happens immediately after installation when upgrading. Back up the data directories listed below before upgrading if you need to retain existing records. The package installer itself contains no cleanup scripts.
 
 Version checks compare numeric components and accept an optional `v` or `V` prefix. Equivalent versions and downgrades preserve existing data. A malformed or unreadable version marker is retained and does not trigger cleanup.
 

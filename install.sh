@@ -66,4 +66,10 @@ echo "Installing SWGBar in $target_directory..."
 /usr/bin/ditto "$source_app" "$target_directory/SWGBar.app"
 /usr/bin/codesign --verify --deep --strict "$target_directory/SWGBar.app"
 
-echo "SWGBar is installed at $target_directory/SWGBar.app. Open it when you are ready."
+echo "Launching SWGBar..."
+if ! /usr/bin/open "$target_directory/SWGBar.app"; then
+    echo "SWGBar is installed at $target_directory/SWGBar.app, but could not be opened automatically. Open it manually from Finder." >&2
+    exit 1
+fi
+
+echo "SWGBar is installed. Look for its icon in the menu bar."
