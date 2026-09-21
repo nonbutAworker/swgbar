@@ -82,7 +82,7 @@ public struct CADetailView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                     
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(ca.subjectElements.cn != L(.notPresentInCertificate) ? ca.subjectElements.cn : ca.caName)
+                        Text(!CertificatePresentation.isMissing(ca.subjectElements.cn) ? ca.subjectElements.cn : ca.caName)
                             .font(.system(size: 15, weight: .bold))
                             .foregroundColor(.primary)
                             .lineLimit(1)
@@ -156,9 +156,9 @@ public struct CADetailView: View {
                     sectionHeader(icon: "calendar", title: L(.validity))
                     
                     VStack(spacing: 8) {
-                        chromeRow(label: L(.validFrom), value: ca.notBeforeFormatted)
+                        chromeRow(label: L(.validFrom), value: CertificatePresentation.validityDate(ca, end: false, language: l10n.language))
                         Divider().opacity(0.4)
-                        chromeRow(label: L(.validUntil), value: ca.notAfterFormatted)
+                        chromeRow(label: L(.validUntil), value: CertificatePresentation.validityDate(ca, end: true, language: l10n.language))
                     }
                     .padding(12)
                     .liquidGlassCard(cornerRadius: 12)
@@ -185,7 +185,7 @@ public struct CADetailView: View {
                         let isPublicPassed: Bool = {
                             if ca.identityKind == "public" { return true }
                             if ca.identityKind == "inspection" || ca.identityKind == "suspected" { return false }
-                            return ca.baselineStatus.contains(L(.publicShort)) && !ca.baselineStatus.contains(L(.trustNotEstablished))
+                            return ca.baselineStatus.contains("Public") && !ca.baselineStatus.contains("not established")
                         }()
                         let isSystemTrustPassed: Bool = (ca.identityKind != "unknown")
                         
@@ -356,7 +356,7 @@ public struct CADetailView: View {
                 .foregroundColor(.secondary)
                 .frame(width: 105, alignment: .leading)
             
-            let isMissing = value == L(.notPresentInCertificate) || value.isEmpty
+            let isMissing = CertificatePresentation.isMissing(value)
             Text(isMissing ? L(.notPresentInCertificate) : value)
                 .font(UITheme.subFont)
                 .foregroundColor(isMissing ? .secondary.opacity(0.8) : .primary)
@@ -377,7 +377,7 @@ public struct CADetailView: View {
                 .foregroundColor(.secondary)
                 .frame(width: 105, alignment: .leading)
             
-            let isMissing = value.isEmpty || value == L(.notPresentInCertificate)
+            let isMissing = CertificatePresentation.isMissing(value)
             if isMissing {
                 Text(L(.notPresentInCertificate))
                     .font(UITheme.subFont)
@@ -400,7 +400,7 @@ public struct CADetailView: View {
     
     private func caStatusTitle(for kind: String) -> String {
         switch kind {
-        case "inspection": return L(.verdictConfirmed)
+        case "inspection": return L(.confirmedShort)
         case "suspected": return L(.verdictSuspected)
         case "public": return L(.publicShort)
         default: return L(.verdictUnknown)

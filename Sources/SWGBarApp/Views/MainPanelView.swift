@@ -10,6 +10,8 @@ import SWGBarContracts
 public struct MainPanelView: View {
     // 订阅语言变更，切换后本视图立即重绘
     @ObservedObject private var l10n = LocalizationManager.shared
+    // 订阅外观变更，SwiftUI 需要显式跟随所选模式
+    @ObservedObject private var appearance = AppearanceManager.shared
     @StateObject var vm: AppViewModel
     
     public init(viewModel: AppViewModel? = nil) {
@@ -64,6 +66,7 @@ public struct MainPanelView: View {
             FooterView(vm: vm)
         }
         .frame(width: UITheme.panelWidth, height: UITheme.panelStandardHeight)
+        .preferredColorScheme(appearance.colorScheme)
         .background(
             ZStack {
                 // 1. Translucent system material

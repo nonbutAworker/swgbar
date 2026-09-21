@@ -90,7 +90,7 @@ public struct OnboardingView: View {
                         vm.configuration.systemCaptureEnabled = true
                         vm.configuration.autoProbeEnabled = step3Agreed
                         vm.showingOnboarding = false
-                        vm.showToast("Local monitoring enabled")
+                        vm.showToast(L(.toastMonitoringEnabled))
                     }
                     .buttonStyle(.borderedProminent)
                     .frame(maxWidth: .infinity)
@@ -99,7 +99,7 @@ public struct OnboardingView: View {
                         vm.configuration.systemCaptureEnabled = false
                         vm.configuration.autoProbeEnabled = false
                         vm.showingOnboarding = false
-                        vm.showToast("Switched to manual probes only")
+                        vm.showToast(L(.toastManualOnly))
                     }
                     .buttonStyle(.bordered)
                     .frame(maxWidth: .infinity)

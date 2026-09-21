@@ -206,7 +206,7 @@ public struct CertificatesTabView: View {
     
     private var statusFilterDisplayText: String {
         switch vm.caStatusFilter {
-        case "inspection": return L(.verdictConfirmed)
+        case "inspection": return L(.confirmedShort)
         case "suspected": return L(.verdictSuspected)
         case "public": return L(.publicShort)
         default: return L(.filterByStatus)
@@ -223,7 +223,7 @@ public struct CertificatesTabView: View {
     private var statusOptions: [StatusOption] {
         [
             StatusOption(id: "ALL", name: L(.allStatusesFilter), kind: "ALL"),
-            StatusOption(id: "inspection", name: L(.verdictConfirmed), kind: "inspection"),
+            StatusOption(id: "inspection", name: L(.confirmedShort), kind: "inspection"),
             StatusOption(id: "suspected", name: L(.verdictSuspected), kind: "suspected"),
             StatusOption(id: "public", name: L(.publicShort), kind: "public")
         ]

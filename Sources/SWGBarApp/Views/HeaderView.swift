@@ -11,6 +11,7 @@ public struct FooterView: View {
     @ObservedObject private var l10n = LocalizationManager.shared
     @ObservedObject var vm: AppViewModel
     @ObservedObject private var appearance = AppearanceManager.shared
+    @State private var reinitSpin: Double = 0
     
     public init(vm: AppViewModel) {
         self.vm = vm
@@ -42,6 +43,34 @@ public struct FooterView: View {
                 .foregroundColor(.secondary.opacity(0.7))
 
             Spacer()
+
+            // Reinitialize: same flow as a first launch or a post-upgrade launch.
+            Button(action: {
+                vm.reinitializeFromScratch()
+            }) {
+                Image(systemName: "arrow.clockwise")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(.secondary.opacity(vm.isReinitializing ? 0.45 : 0.9))
+                    .rotationEffect(.degrees(reinitSpin))
+                    .frame(width: 14, height: 14)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(vm.isReinitializing)
+            .help(vm.isReinitializing ? L(.reinitializeRunning) : L(.reinitializeHint))
+            .accessibilityLabel(L(.reinitialize))
+            .accessibilityHint(L(.reinitializeHint))
+            .onChange(of: vm.isReinitializing) { _, running in
+                if running {
+                    withAnimation(.linear(duration: 0.9).repeatForever(autoreverses: false)) {
+                        reinitSpin += 360
+                    }
+                } else {
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        reinitSpin = 0
+                    }
+                }
+            }
 
             Text(L(.processedOnThisMac))
                 .font(.system(size: 10))

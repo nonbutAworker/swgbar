@@ -59,7 +59,7 @@ public enum UITheme {
     @MainActor
     public static func badgeText(for identityKind: String) -> String {
         switch identityKind {
-        case "inspection": return L(.verdictConfirmed)
+        case "inspection": return L(.confirmedShort)
         case "suspected": return L(.verdictSuspected)
         case "public": return L(.publicShort)
         default: return L(.verdictUnknown)

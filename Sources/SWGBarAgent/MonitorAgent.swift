@@ -352,6 +352,27 @@ public actor MonitorAgent {
         startChannelWorkers(workerCount: 4)
     }
 
+    // MARK: - Reinitialize
+    /// Clear local records and run the same initialization as a first launch or a
+    /// post-upgrade launch: browser history import plus historical baseline probing.
+    public func reinitializeFromScratch() async {
+        AppLogger.shared.info("Reinit", "Manual reinitialization requested; clearing local records and rerunning first-launch initialization")
+        stopChannelWorkers()
+        stopPendingProbeFeeder()
+        SystemPacketSniffer.shared.stop()
+        await DomainProbeChannel.shared.clearCooldowns()
+
+        do {
+            try repository.clearAllHistoricalData()
+        } catch {
+            AppLogger.shared.error("Reinit", "Cannot clear local records: \(error.localizedDescription)")
+        }
+
+        // Reuse the first-launch initialization path instead of duplicating it.
+        await populateLiveSystemData()
+        AppLogger.shared.info("Reinit", "Reinitialization complete; baseline discovery and probing restarted")
+    }
+
     // MARK: - State and configuration
 
     public func getCollectorState() -> CollectorState {

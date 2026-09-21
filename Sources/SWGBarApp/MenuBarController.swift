@@ -67,6 +67,8 @@ public final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegat
         popover.animates = true
         popover.delegate = self
         popover.contentViewController = NSHostingController(rootView: MainPanelView(viewModel: viewModel))
+        // Let the appearance manager reach the panel window on every switch.
+        AppearanceManager.shared.register(popover: popover)
     }
     
     private func setupEventMonitor() {
@@ -153,6 +155,8 @@ public final class MenuBarController: NSObject, NSMenuDelegate, NSPopoverDelegat
         popover.behavior = .transient
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         popover.contentViewController?.view.window?.makeKey()
+        // A newly shown popover window starts from the system appearance.
+        AppearanceManager.shared.apply()
         startMonitoringOutsideClicks()
     }
     

@@ -171,6 +171,9 @@ public final class AppViewModel: ObservableObject {
         }
     }
     
+    // Guard against repeated reinitialization while one is already running.
+    @Published public var isReinitializing: Bool = false
+
     // Operation feedback and notifications
     @Published public var configuration: Configuration = Configuration()
     @Published public var notificationToast: String? = nil
@@ -334,16 +337,39 @@ public final class AppViewModel: ObservableObject {
             NativeTrustEvaluator.shared.invalidateCACache()
             await agent.clearAllHistoricalData()
             refreshAllData()
-            showToast("All historical probe data has been cleared")
+            showToast(L(.toastHistoryCleared))
         }
     }
     
+    /// Rerun the first-launch initialization: clear local records, reimport
+    /// browser history, and probe the historical baseline again.
+    public func reinitializeFromScratch() {
+        guard !isReinitializing else { return }
+        isReinitializing = true
+        Task {
+            NativeTrustEvaluator.shared.invalidateCACache()
+            await agent.reinitializeFromScratch()
+            let updated = await agent.getOverviewSnapshot()
+            await MainActor.run {
+                self.snapshot = updated
+                self.cachedAllDomains = []
+                self.caClusters = []
+                self.displayedCAClusters = []
+                self.selectedDomainId = nil
+                self.selectedCAClusterId = nil
+                self.isReinitializing = false
+                self.refreshAllData()
+                NotificationCenter.default.post(name: .swgBarDataChanged, object: nil)
+            }
+        }
+    }
+
     // CD09: Delete a rule.
     public func deleteRule(ruleId: String) {
         Task {
             try? await agent.deleteRule(ruleId: ruleId)
             refreshAllData()
-            showToast("Rule deleted")
+            showToast(L(.toastRuleDeleted))
         }
     }
     

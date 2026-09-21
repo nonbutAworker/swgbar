@@ -575,6 +575,89 @@ final class BasicTests: XCTestCase {
         XCTAssertEqual(L10nTable.string(.certificates, .traditionalChinese), "憑證")
     }
 
+    /// 底栏刷新按钮必须真正复位一次性初始化标记，让首次启动的初始化链路重新执行。
+    func testReinitializeRestoresFirstLaunchInitializationState() async throws {
+        let db = try SQLiteDatabase.inMemory()
+        let repo = StorageRepository(db: db)
+
+        // 模拟已完成初始化的历史状态
+        _ = try repo.getOrCreateTarget(hostname: "example.com", port: 443, requestCount: 7)
+        try repo.markBrowserHistoryImportCompleted()
+        try repo.markHistoricalBaselineProbeCompleted()
+        XCTAssertTrue(repo.hasAnyTargets())
+        XCTAssertTrue(repo.hasCompletedBrowserHistoryImport())
+        XCTAssertTrue(repo.hasCompletedHistoricalBaselineProbe())
+
+        // 重新初始化的清理步骤：与升级后首次启动等价的干净状态
+        try repo.clearAllHistoricalData()
+
+        XCTAssertFalse(repo.hasAnyTargets(), "重新初始化后不应保留旧目标")
+        XCTAssertFalse(repo.hasCompletedBrowserHistoryImport(), "浏览器历史导入必须能再次执行")
+        XCTAssertFalse(repo.hasCompletedHistoricalBaselineProbe(), "基线探测必须能再次执行")
+    }
+
+    /// 外观模式必须映射到明确的强制外观，只有跟随系统才允许为空。
+    func testAppearanceModeMapsToExplicitAppearance() {
+        XCTAssertNil(AppearanceMode.system.appKitAppearanceName, "跟随系统不应强制外观")
+        XCTAssertEqual(AppearanceMode.dark.appKitAppearanceName, "NSAppearanceNameDarkAqua")
+        XCTAssertEqual(AppearanceMode.light.appKitAppearanceName, "NSAppearanceNameAqua")
+    }
+
+    /// 每个文案键都必须直接存在于五张字典中；不能让英文回退掩盖漏译。
+    func testLocalizationDictionariesContainEveryKeyDirectly() {
+        let tables: [(AppLanguage, [L10nKey: String])] = [
+            (.english, L10nTable.english),
+            (.simplifiedChinese, L10nTable.simplifiedChinese),
+            (.traditionalChinese, L10nTable.traditionalChinese),
+            (.japanese, L10nTable.japanese),
+            (.korean, L10nTable.korean),
+        ]
+        for (language, table) in tables {
+            XCTAssertEqual(Set(table.keys), Set(L10nKey.allCases), "\(language.rawValue) 存在漏译或多余键")
+        }
+    }
+
+    /// 用户审核过的 1.5.1 中文原文受整体指纹保护；新增外观/语言控件不属于该原稿。
+    func testApprovedSimplifiedChineseCopyFingerprint() {
+        let newControlKeys: Set<L10nKey> = [
+            .appearanceSystem, .appearanceDark, .appearanceLight,
+            .appearance, .appearanceCycleHint, .appearanceHintFormat,
+            .language, .languageSwitchHint, .languageHintFormat,
+            .reinitialize, .reinitializeHint, .reinitializeRunning,
+        ]
+        let source = L10nTable.simplifiedChinese
+            .filter { !newControlKeys.contains($0.key) }
+            .map { "\($0.key.rawValue)=\($0.value)" }
+            .sorted()
+            .joined(separator: "\n")
+        var hash: UInt64 = 0xcbf29ce484222325
+        for byte in source.utf8 {
+            hash ^= UInt64(byte)
+            hash &*= 0x100000001b3
+        }
+        XCTAssertEqual(String(format: "%016llx", hash), "67ad16de7ff7cad9",
+                       "审核中文发生变化；必须先逐项与 1.5.1 原稿核对")
+    }
+
+    func testCertificatePresentationUsesSelectedLanguageAndStableMissingSentinels() async {
+        let certificate = CADetail(
+            clusterId: "date-test", caName: "Example CA", identityKind: "public",
+            hasUserAssertion: false, subject: "", issuer: "", validityFormatted: "No expiration",
+            certSha256: "", spkiSha256: "", extraTrustVerifiedPath: [], baselineStatus: "",
+            activeRule: nil, affectedDomainsCount: 0,
+            notBeforeMs: 1_700_000_000_000, notAfterMs: 1_800_000_000_000
+        )
+        let zh = await CertificatePresentation.validityDate(certificate, end: false, language: .simplifiedChinese)
+        let en = await CertificatePresentation.validityDate(certificate, end: false, language: .english)
+        let ja = await CertificatePresentation.validityDate(certificate, end: false, language: .japanese)
+        XCTAssertTrue(zh.contains("年") && zh.contains("月") && zh.contains("日"))
+        XCTAssertFalse(en.contains("年"))
+        XCTAssertTrue(ja.contains("年") && ja.contains("月") && ja.contains("日"))
+        XCTAssertTrue(CertificatePresentation.isMissing("<Not present in certificate>"))
+        XCTAssertTrue(CertificatePresentation.isMissing("<未包含在证书中>"))
+        XCTAssertFalse(CertificatePresentation.isMissing("Example CA"))
+    }
+
     /// 带参数的文案在各语言下都要能正确格式化，占位符不残留。
     func testLocalizedFormatStringsSubstituteArguments() {
         for lang in AppLanguage.allCases {
@@ -673,10 +756,11 @@ final class BasicTests: XCTestCase {
     /// 中日韩三种语言不得残留大段英文原文，用于发现漏翻。
     func testTranslationsAreNotEnglishCopies() {
         var untranslated: [String] = []
+        // 这两个品牌名在审核过的 1.5.1 中文原稿中即使用英文，其他语言也保持产品专名。
+        let approvedBrandNames: Set<L10nKey> = [.macosSystemTrust, .mozillaRootStore]
         for key in L10nKey.allCases {
             let english = L10nTable.string(key, .english)
-            // 仅检查含字母且长度足够的文案，跳过 SWGBar、CN、SHA-256 等专名
-            guard english.count > 12 else { continue }
+            guard english.count > 12, !approvedBrandNames.contains(key) else { continue }
             for language: AppLanguage in [.simplifiedChinese, .japanese, .korean] {
                 if L10nTable.string(key, language) == english {
                     untranslated.append("\(language.rawValue)/\(key.rawValue)")

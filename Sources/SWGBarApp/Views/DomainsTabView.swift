@@ -254,7 +254,7 @@ public struct DomainsTabView: View {
                         .font(.system(size: 11, weight: .medium))
                         .foregroundColor(vm.domainCertFilter == "ALL" ? .secondary : .accentColor)
                     
-                    Text(vm.domainCertFilter == "ALL" ? L(.filterCertificates) : vm.domainCertFilter)
+                    Text(vm.domainCertFilter == "ALL" ? L(.filterCertificates) : certificateFilterLabel(vm.domainCertFilter))
                         .font(UITheme.subFont)
                         .foregroundColor(vm.domainCertFilter == "ALL" ? .secondary : .primary)
                         .lineLimit(1)
@@ -296,10 +296,17 @@ public struct DomainsTabView: View {
             return vm.availableCertOptions
         }
         return vm.availableCertOptions.filter { opt in
-            opt.filterValue == "ALL" || opt.displayName.lowercased().contains(query)
+            opt.filterValue == "ALL" || certificateFilterLabel(opt.filterValue).lowercased().contains(query)
         }
     }
     
+    // Keep filter values stable; resolve display-only labels at render time.
+    private func certificateFilterLabel(_ value: String) -> String {
+        if value == "ALL" { return L(.allCertificatesFilter) }
+        if value == "Awaiting probe" { return L(.awaitingProbe) }
+        return value
+    }
+
     private func formatCount(_ count: Int) -> String {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
@@ -388,7 +395,7 @@ public struct DomainsTabView: View {
                         .foregroundColor(isSelected ? .accentColor : .secondary)
                 }
                 
-                Text(opt.displayName)
+                Text(certificateFilterLabel(opt.filterValue))
                     .font(UITheme.subFont)
                     .foregroundColor(isSelected ? .accentColor : .primary)
                     .lineLimit(1)

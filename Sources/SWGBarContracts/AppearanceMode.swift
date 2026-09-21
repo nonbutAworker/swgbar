@@ -38,6 +38,16 @@ public enum AppearanceMode: String, CaseIterable, Sendable {
         }
     }
 
+    /// The AppKit appearance name to force; nil means follow the system.
+    /// Kept in Contracts so tests can assert the mapping without AppKit UI.
+    public var appKitAppearanceName: String? {
+        switch self {
+        case .system: return nil
+        case .dark: return "NSAppearanceNameDarkAqua"
+        case .light: return "NSAppearanceNameAqua"
+        }
+    }
+
     /// UserDefaults key shared by the app and its tests.
     public static let storageKey = "com.swgbar.appearanceMode"
 }

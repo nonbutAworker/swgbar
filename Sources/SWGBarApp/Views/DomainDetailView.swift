@@ -129,8 +129,9 @@ public struct DomainDetailView: View {
                     sectionHeader(icon: "lock.shield", title: L(.certificateAndTrust))
 
                     VStack(alignment: .leading, spacing: 10) {
-                        let isPublicPassed = (detail.verdict == .publicPath || detail.baselineVerdict == L(.publicPathEstablished))
-                        let isSystemTrustPassed = (detail.verdict != .unknown && detail.handshakeStatus != L(.notProbedOrPending))
+                        // Compare stable snapshot values, never translated display strings.
+                        let isPublicPassed = (detail.verdict == .publicPath || detail.baselineVerdict == "Public path established")
+                        let isSystemTrustPassed = (detail.verdict != .unknown && detail.handshakeStatus != "Not probed or pending")
 
                         HStack {
                             Text(L(.systemTrust))

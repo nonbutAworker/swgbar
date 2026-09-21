@@ -1,6 +1,6 @@
 # SWGBar
 
-A native macOS menu bar app for examining TLS inspection signals, certificate trust, and observed domains. The interface, documentation, and source comments are in English.
+A native macOS menu bar app for examining TLS inspection signals, certificate trust, and observed domains. The interface supports English, Simplified Chinese, Traditional Chinese, Japanese, and Korean.
 
 <p align="center">
   <img src="docs/images/swgbardemo.png" alt="SWGBar overview showing TLS inspection metrics and certificate classifications" width="420">
@@ -41,6 +41,8 @@ shasum -a 256 -c SHA256SUMS.txt
 - **Domains:** discovered hostnames and ports, search and certificate filters, probe results, connection details, and certificate trust details.
 - **Certificates:** certificate clusters, subjects and issuers, validity dates, fingerprints, and affected domains.
 - **Monitoring controls:** pause and resume monitoring from the panel footer.
+- **Language and appearance:** switch languages from the overview and choose system, light, or dark appearance from the footer.
+- **Reinitialize:** clear collected local records and rerun browser history import and historical baseline probing from the footer.
 
 The app compares native macOS trust results with an independent public certificate baseline. Its classifications include confirmed inspection, suspected inspection, public trust, expected private trust, unknown, and excluded traffic. Classification depends on the collected evidence and configured rules; a repeated CA alone is not proof of inspection.
 
@@ -95,7 +97,7 @@ Create an installer for the current architecture:
 ./scripts/package_release.sh
 ```
 
-The script builds the app and writes `build/SWGBar-macOS-<architecture>.pkg` and `build/SHA256SUMS.txt`. The published 1.6.1 package is built and tested on Apple Silicon. Intel binaries are not included in that release.
+The script builds the app and writes `build/SWGBar-macOS-<architecture>.pkg` and `build/SHA256SUMS.txt`. The published 1.7.0 package is built and tested on Apple Silicon. Intel binaries are not included in that release.
 
 For the existing disk image and ZIP packaging workflow:
 

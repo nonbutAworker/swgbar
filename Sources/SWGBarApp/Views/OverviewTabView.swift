@@ -76,7 +76,7 @@ public struct OverviewTabView: View {
             
             let total = vm.snapshot.mitmTotalCount
             HStack(spacing: 10) {
-                statusMetricItem(color: UITheme.colorConfirmed, label: L(.verdictConfirmed), count: vm.snapshot.counts.confirmed, total: total)
+                statusMetricItem(color: UITheme.colorConfirmed, label: L(.confirmedShort), count: vm.snapshot.counts.confirmed, total: total)
                     .accessibilityIdentifier("O04_metric_confirmed")
                 statusMetricItem(color: UITheme.colorSuspected, label: L(.verdictSuspected), count: vm.snapshot.counts.suspected, total: total)
                     .accessibilityIdentifier("O04_metric_suspected")
@@ -125,7 +125,7 @@ public struct OverviewTabView: View {
                             
                             Spacer()
                             
-                            Text(L(.domainsCountFormat, cluster.affectedDomainsCount))
+                            Text(L(.overviewDomainsCountFormat, cluster.affectedDomainsCount))
                                 .font(UITheme.subFont)
                                 .foregroundColor(.secondary)
                             
