@@ -2,6 +2,10 @@
 
 A native macOS menu bar app for examining TLS inspection signals, certificate trust, and observed domains. The interface, documentation, and source comments are in English.
 
+<p align="center">
+  <img src="docs/images/swgbardemo.png" alt="SWGBar overview showing TLS inspection metrics and certificate classifications" width="420">
+</p>
+
 ## Install
 
 **[Download SWGBar for Apple Silicon](https://github.com/nonbutAworker/swgbar/releases/latest/download/SWGBar-macOS-arm64.pkg)**
